@@ -10,7 +10,9 @@ const props = defineProps<{
   story: Story
   narration: Narration
   cover: CoverGeneration
+  coverRetryLocked: boolean
 }>()
+defineEmits<{ retryCover: [] }>()
 
 const reader = useStoryReader(toRef(props, 'story'), props.narration)
 const { availability, activeId } = props.narration
@@ -42,7 +44,7 @@ function playLabel(id: string) {
   <section class="card reader">
     <div class="book-head">
       <!-- 封面未就緒或失敗時，下方文字與朗讀照常可用（PLAN 3.3、A5）。 -->
-      <StoryCover :cover="cover" :story="story" />
+      <StoryCover :cover="cover" :story="story" :retry-locked="coverRetryLocked" @retry="$emit('retryCover')" />
       <div class="titles">
         <h1 lang="en">{{ story.title.en }}</h1>
         <p class="zh">{{ story.title.zh }}</p>

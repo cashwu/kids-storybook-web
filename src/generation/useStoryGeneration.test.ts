@@ -388,6 +388,32 @@ describe('useStoryGeneration 與封面', () => {
     expect(ctx.coverCalls().at(-1)).toEqual([makeStory('B'), KEY])
   })
 
+  // A7：A 封面失敗後建立 B，B 生成中閱讀區仍顯示 A 的「重試」。這時若照樣送出，會為 A 多付一次封面費，
+  // 而 B 發佈後 A 的結果又會被丟棄。案例分別在等 B 文字與等 B 封面時重試，兩段都不能送出；
+  // B 發佈（封面失敗）後鎖定解除，這時重試的是 B 的封面。
+  it('建立新故事期間（等文字、等封面）重試舊書封面不送請求；新書發佈後重試的是新書的封面', async () => {
+    const ctx = setup()
+    await submitWith(ctx, { ok: true, story: makeStory('A') }, { ok: false, error: 'timeout' })
+    ctx.gen.openForm()
+
+    const done = ctx.gen.submit()
+    expect(ctx.gen.coverRetryLocked.value).toBe(true)
+    ctx.gen.retryCover()
+    expect(ctx.coverCalls()).toHaveLength(1)
+
+    ctx.respond({ ok: true, story: makeStory('B') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(2))
+    ctx.gen.retryCover()
+    expect(ctx.coverCalls()).toHaveLength(2)
+
+    await ctx.respondCover({ ok: false, error: 'timeout' })
+    await done
+    expect(ctx.gen.coverRetryLocked.value).toBe(false)
+    ctx.gen.retryCover()
+    expect(ctx.coverCalls()).toHaveLength(3)
+    expect(ctx.coverCalls()[2]).toEqual([makeStory('B'), KEY])
+  })
+
   // 等封面時表單仍展開、看得到進度，不能收起（與文字生成中相同）。
   it('等封面時不能收起表單', async () => {
     const ctx = setup()

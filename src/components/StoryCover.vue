@@ -7,7 +7,10 @@ import type { Story } from '../../shared/story'
 const props = defineProps<{
   cover: CoverGeneration
   story: Story
+  /** 建立新故事期間為 true：重試會為這本舊書多付一次費用，新書發佈後結果又被丟棄（A7）。 */
+  retryLocked: boolean
 }>()
+const emit = defineEmits<{ retry: [] }>()
 
 const { status, src, error } = props.cover
 const reason = computed(() => (error.value ? COVER_ERROR_MESSAGES[error.value] : ''))
@@ -16,7 +19,8 @@ const dialog = ref<HTMLDialogElement | null>(null)
 // 重試前先確認：重送是新的付費請求，逾時的上一次也可能已經計費（PLAN 3.3、A7）。
 function confirmRetry() {
   dialog.value?.close()
-  props.cover.retry()
+  // 實際是否送出由 useStoryGeneration.retryCover 判斷；這裡的停用只是畫面提示。
+  emit('retry')
 }
 </script>
 
@@ -30,7 +34,7 @@ function confirmRetry() {
     <span class="ficon" aria-hidden="true">🖼️</span>
     <b class="ftxt">封面失敗</b>
     <span class="fdesc">{{ reason }}故事照常可以閱讀。</span>
-    <button type="button" class="mini-btn" @click="dialog?.showModal()">重試</button>
+    <button type="button" class="mini-btn" :disabled="retryLocked" @click="dialog?.showModal()">重試</button>
   </div>
   <div v-else class="cover load" role="status">
     <span class="spin" aria-hidden="true"></span>
@@ -44,7 +48,7 @@ function confirmRetry() {
     <p>只會重新產生封面；故事文字不受影響。</p>
     <div class="row">
       <button type="button" class="btn ghost" @click="dialog?.close()">取消</button>
-      <button type="button" class="btn primary" @click="confirmRetry">重新產生</button>
+      <button type="button" class="btn primary" :disabled="retryLocked" @click="confirmRetry">重新產生</button>
     </div>
   </dialog>
 </template>
@@ -70,6 +74,7 @@ function confirmRetry() {
   border: 1px solid currentColor; background: var(--base); border-radius: 999px;
   padding: 2px 10px; font-size: 12px; color: inherit; cursor: pointer;
 }
+.mini-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .dialog {
   border: none; border-radius: 18px; padding: 22px; max-width: 380px; width: calc(100% - 32px);
   box-shadow: 0 20px 50px #4c4f6955; color: var(--text); background: var(--base);

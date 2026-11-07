@@ -71,7 +71,15 @@ const emptyState = computed(() => {
       </section>
 
       <!-- storyVersion 改變時重建閱讀區，新故事從第一頁開始。 -->
-      <StoryReader v-if="story" :key="storyVersion" :story="story" :narration="narration" :cover="cover" />
+      <StoryReader
+        v-if="story"
+        :key="storyVersion"
+        :story="story"
+        :narration="narration"
+        :cover="cover"
+        :cover-retry-locked="generation.coverRetryLocked.value"
+        @retry-cover="generation.retryCover()"
+      />
       <section v-else class="card reader">
         <div class="empty">
           <div class="big" aria-hidden="true">{{ emptyState.icon }}</div>

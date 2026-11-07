@@ -1,4 +1,4 @@
-import { reactive, readonly, ref, shallowRef, type Ref } from 'vue'
+import { computed, reactive, readonly, ref, shallowRef, type Ref } from 'vue'
 import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
 import { PAGE_COUNT_DEFAULT, validateStoryInput, type StoryInput, type StoryInputErrors } from '../../shared/storyInput'
@@ -21,6 +21,10 @@ export interface StoryGeneration {
   formOpen: Readonly<Ref<boolean>>
   /** 目前這本書的封面正在重試：這段時間不能建立新故事。 */
   coverBusy: Readonly<Ref<boolean>>
+  /** 建立新故事期間（等文字或等封面）不能重試目前這本書的封面。 */
+  coverRetryLocked: Readonly<Ref<boolean>>
+  /** 重試目前這本書的封面；建立新故事期間忽略。 */
+  retryCover(): void
   submit(): Promise<void>
   openForm(): void
   closeForm(): void
@@ -46,7 +50,7 @@ export interface StoryGeneration {
 export function useStoryGeneration(
   api: StoryApi,
   narration: { stop(): void },
-  cover: Pick<CoverGeneration, 'busy' | 'request' | 'publish'>,
+  cover: Pick<CoverGeneration, 'busy' | 'request' | 'publish' | 'retry'>,
 ): StoryGeneration {
   const form = reactive<StoryInput>({
     character: DEMO_CHARACTER,
@@ -61,6 +65,10 @@ export function useStoryGeneration(
   const story = shallowRef<Story | null>(null)
   const storyVersion = ref(0)
   const formOpen = ref(true)
+
+  // 建立新故事期間閱讀區仍顯示舊書與它的「重試」；這時重試會為舊書多送一次付費請求，
+  // 而新書發佈後結果又會被丟棄（A7），因此鎖住。
+  const coverRetryLocked = computed(() => status.value === 'generating' || status.value === 'drawing')
 
   async function submit() {
     if (status.value === 'generating' || status.value === 'drawing' || cover.busy.value) return
@@ -100,6 +108,10 @@ export function useStoryGeneration(
     storyVersion: readonly(storyVersion),
     formOpen: readonly(formOpen),
     coverBusy: cover.busy,
+    coverRetryLocked,
+    retryCover: () => {
+      if (!coverRetryLocked.value) cover.retry()
+    },
     submit,
     openForm: () => {
       formOpen.value = true
