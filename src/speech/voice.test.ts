@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSpeechRate, pickEnglishVoice } from './voice'
+import { parseSpeechRate, pickEnglishVoice, pickTaiwanChineseVoice } from './voice'
 
 const v = (name: string, lang: string, isDefault = false) => ({ name, lang, default: isDefault })
 
@@ -33,6 +33,27 @@ describe('pickEnglishVoice', () => {
 
   it('不把 lang 只是以 en 開頭的其他語言當成英文', () => {
     expect(pickEnglishVoice([v('X', 'enx-ZZ')])).toBeNull()
+  })
+})
+
+// 中文朗讀只用台灣中文聲音（PLAN 3.5 第 3 項）：zh-CN 是大陸口音、zh-HK 念粵語，
+// 改用它們會讓孩子聽到和課本不同的發音，因此沒有 zh-TW 時寧可不提供中文朗讀。
+describe('pickTaiwanChineseVoice', () => {
+  it('有標為預設的 zh-TW 聲音時選它，否則選第一個 zh-TW 聲音', () => {
+    expect(pickTaiwanChineseVoice([v('Meijia', 'zh-TW'), v('Hanhan', 'zh-TW', true)])?.name).toBe('Hanhan')
+    expect(pickTaiwanChineseVoice([v('Alex', 'en-US', true), v('Meijia', 'zh-TW'), v('Hanhan', 'zh-TW')])?.name).toBe('Meijia')
+  })
+
+  // Android 回報 zh_TW，部分瀏覽器帶文字代碼 zh-Hant-TW，都是同一地區的台灣中文。
+  it('lang 為底線、大小寫不同或帶 Hant 文字代碼的台灣中文時仍可選', () => {
+    expect(pickTaiwanChineseVoice([v('Android', 'ZH_tw')])?.name).toBe('Android')
+    expect(pickTaiwanChineseVoice([v('Hant', 'zh-Hant-TW')])?.name).toBe('Hant')
+  })
+
+  it('只有 zh-CN、zh-HK、粵語或不帶地區的中文聲音時回傳 null', () => {
+    const voices = [v('Tingting', 'zh-CN', true), v('Sinji', 'zh-HK'), v('Yue', 'yue-HK'), v('Zh', 'zh'), v('Hans', 'zh-Hans-CN')]
+    expect(pickTaiwanChineseVoice(voices)).toBeNull()
+    expect(pickTaiwanChineseVoice([])).toBeNull()
   })
 })
 

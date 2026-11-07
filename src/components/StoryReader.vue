@@ -15,18 +15,30 @@ const props = defineProps<{
 defineEmits<{ retryCover: [] }>()
 
 const reader = useStoryReader(toRef(props, 'story'), props.narration)
-const { availability, activeId } = props.narration
+const { availability, activeId, language, chineseAvailable, canPlay } = props.narration
 
-const canPlay = computed(() => availability.value === 'ready')
+// 英文聲音的問題只在英文模式顯示；能切到中文代表裝置有 zh-TW 聲音，中文模式下不需要這則警告。
 const unavailableMessage = computed(() => {
+  if (language.value !== 'en') return null
   switch (availability.value) {
     case 'unsupported':
       return '這個瀏覽器不支援語音合成，無法朗讀；故事文字照常可以閱讀。'
     case 'no-english-voice':
-      return '這台裝置沒有可用的英文語音，無法朗讀；故事文字照常可以閱讀。'
+      return chineseAvailable.value
+        ? '這台裝置沒有可用的英文語音，無法用英文朗讀；可以切換成中文朗讀，故事文字照常可以閱讀。'
+        : '這台裝置沒有可用的英文語音，無法朗讀；故事文字照常可以閱讀。'
     default:
       return null
   }
+})
+
+// 聲音清單載入前（checking）不急著說沒有中文，避免一開頁就閃過錯誤說明。
+const chineseHint = computed(() => {
+  if (chineseAvailable.value) {
+    return language.value === 'zh' ? '目前播放鈕念中文；選英文可改回英文' : '選中文後，每句的播放鈕會改念中文'
+  }
+  if (availability.value === 'checking') return '正在檢查裝置語音'
+  return '這台裝置沒有台灣中文（zh-TW）語音，無法用中文朗讀'
 })
 
 // 句子 id 由頁碼與句序組成，只在目前這本故事內唯一；替換故事時 App 以 storyVersion 重建本元件讓頁碼歸零，
@@ -35,8 +47,9 @@ const sentenceId = (sentenceIndex: number) => `p${reader.pageIndex.value}-s${sen
 
 function playLabel(id: string) {
   if (activeId.value === id) return '暫停朗讀'
-  if (availability.value === 'checking') return '正在檢查裝置語音'
-  return canPlay.value ? '播放英文朗讀' : '裝置無法朗讀'
+  if (language.value === 'en' && availability.value === 'checking') return '正在檢查裝置語音'
+  if (!canPlay.value) return '裝置無法朗讀'
+  return language.value === 'zh' ? '播放中文朗讀' : '播放英文朗讀'
 }
 </script>
 
@@ -60,6 +73,25 @@ function playLabel(id: string) {
       </div>
     </div>
 
+    <!-- 瀏覽器不支援語音合成時兩種語言都不能念，不顯示切換列，只留上方的無法朗讀說明。 -->
+    <div v-if="availability !== 'unsupported'" class="langrow">
+      <div class="seg" role="group" aria-label="朗讀語言">
+        <button type="button" :class="{ on: language === 'en' }" :aria-pressed="language === 'en'" @click="narration.setLanguage('en')">
+          英文
+        </button>
+        <button
+          type="button"
+          :class="{ on: language === 'zh' }"
+          :aria-pressed="language === 'zh'"
+          :disabled="!chineseAvailable"
+          @click="narration.setLanguage('zh')"
+        >
+          中文
+        </button>
+      </div>
+      <small role="status">{{ chineseHint }}</small>
+    </div>
+
     <div class="page">
       <div class="page-label" aria-live="polite">第 {{ reader.pageIndex.value + 1 }} 頁，共 {{ reader.pageCount.value }} 頁</div>
       <div
@@ -75,7 +107,7 @@ function playLabel(id: string) {
           :disabled="!canPlay"
           :aria-label="playLabel(sentenceId(i))"
           :aria-pressed="activeId === sentenceId(i)"
-          @click="narration.toggle(sentenceId(i), sentence.en)"
+          @click="narration.toggle(sentenceId(i), sentence)"
         >
           <span aria-hidden="true">{{ activeId === sentenceId(i) ? '❚❚' : '▶' }}</span>
         </button>

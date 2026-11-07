@@ -4,7 +4,7 @@ import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
 import type { CoverApi, GenerateCoverResult } from '../api/coverApi'
 import type { GenerateStoryResult, StoryApi } from '../api/storyApi'
-import { createFakeSpeechEngine, enUS } from '../speech/fakeSpeechEngine'
+import { createFakeSpeechEngine, enUS, zhTW } from '../speech/fakeSpeechEngine'
 import { useNarration } from '../speech/useNarration'
 import { useCoverGeneration } from './useCoverGeneration'
 import { useStoryGeneration } from './useStoryGeneration'
@@ -37,7 +37,7 @@ const fail = (error: StoryApiErrorCode): GenerateStoryResult => ({ ok: false, er
 
 /** 真的 useNarration 搭配假 engine，讓測試能觀察替換故事時朗讀高亮與 engine.cancel 的實際結果。 */
 function fakeNarration() {
-  const engine = createFakeSpeechEngine([enUS])
+  const engine = createFakeSpeechEngine([enUS, zhTW])
   const narration = effectScope().run(() => useNarration({ engine, rate: 0.1 }))!
   return { engine, narration }
 }
@@ -240,7 +240,7 @@ describe('useStoryGeneration 建立新故事', () => {
   // B 的文字成功後還要等封面，這段期間 A 仍是目前的書，也繼續朗讀；封面結束、真正替換時才停止。
   it('A 正在朗讀時，B 生成中與等封面時仍繼續朗讀，替換成 B 時停止朗讀並清除高亮', async () => {
     const ctx = await withStoryA()
-    ctx.narration.toggle('p0-s0', 'A page 1.')
+    ctx.narration.toggle('p0-s0', { en: 'A page 1.', zh: 'A 第 1 頁。' })
 
     const done = ctx.gen.submit()
     expect(ctx.narration.activeId.value).toBe('p0-s0')
@@ -257,10 +257,24 @@ describe('useStoryGeneration 建立新故事', () => {
     expect(ctx.engine.cancelCount).toBeGreaterThan(cancelsBeforeReplace)
   })
 
+  // Z4：朗讀語言是使用者對「怎麼念」的選擇，不屬於某一本書；替換故事若順便重設成英文，
+  // 使用者每換一本都得重選中文。替換時仍要停止 A 的中文朗讀，避免 B 畫面上念著 A 的句子。
+  it('中文模式下 A 正在朗讀時替換成 B，停止 A 的朗讀但 B 仍是中文模式', async () => {
+    const ctx = await withStoryA()
+    ctx.narration.setLanguage('zh')
+    ctx.narration.toggle('p0-s0', { en: 'A page 1.', zh: 'A 第 1 頁。' })
+
+    await submitWith(ctx, { ok: true, story: makeStory('B') })
+
+    expect(ctx.gen.story.value).toEqual(makeStory('B'))
+    expect(ctx.narration.activeId.value).toBeNull()
+    expect(ctx.narration.language.value).toBe('zh')
+  })
+
   // A6 的另一半：B 失敗時 A 仍是目前的故事，正在念的 A 不該被打斷。
   it('A 正在朗讀時 B 文字失敗，A 的朗讀不受影響', async () => {
     const ctx = await withStoryA()
-    ctx.narration.toggle('p0-s0', 'A page 1.')
+    ctx.narration.toggle('p0-s0', { en: 'A page 1.', zh: 'A 第 1 頁。' })
     const cancelsBefore = ctx.engine.cancelCount
 
     await submitWith(ctx, fail('invalid_story'))

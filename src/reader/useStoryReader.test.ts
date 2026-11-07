@@ -72,7 +72,7 @@ describe('useStoryReader 與 useNarration 組合', () => {
       const narration = useNarration({ engine, rate: 0.1 })
       return { narration, reader: useStoryReader(ref(story), narration) }
     })!
-    narration.toggle('p0-s0', 'Page 0.')
+    narration.toggle('p0-s0', { en: 'Page 0.', zh: '第 0 頁。' })
     const cancelsBeforeTurn = engine.cancelCount
 
     reader.next()

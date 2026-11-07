@@ -29,6 +29,20 @@ export function pickEnglishVoice<V extends VoiceInfo>(voices: readonly V[]): V |
   )
 }
 
+/** zh-TW 或帶文字代碼的 zh-Hant-TW；不接受 zh-CN、zh-HK（粵語）或不帶地區的 zh。 */
+function isTaiwanChinese(voice: VoiceInfo): boolean {
+  const lang = normalizeLang(voice.lang)
+  return lang === 'zh-tw' || lang === 'zh-hant-tw'
+}
+
+/**
+ * 中文朗讀只用台灣中文聲音（PLAN 3.5 第 3 項）：標為預設的 zh-TW → 第一個 zh-TW；沒有時回傳 null，
+ * 由呼叫端讓「中文」不能選。刻意不退到其他中文聲音：zh-CN 是大陸口音，zh-HK 會念成粵語。
+ */
+export function pickTaiwanChineseVoice<V extends VoiceInfo>(voices: readonly V[]): V | null {
+  return voices.find((v) => v.default && isTaiwanChinese(v)) ?? voices.find(isTaiwanChinese) ?? null
+}
+
 export const DEFAULT_SPEECH_RATE = 0.1
 const MIN_RATE = 0.1
 const MAX_RATE = 10
