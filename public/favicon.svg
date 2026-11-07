@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 生活情境雙語有聲故事書：翻開的故事書＋聲波，配色取自 Catppuccin Latte -->
+  <rect width="64" height="64" rx="14" fill="#8839ef"/>
+  <path d="M32 21c-5-4-12-5-19-4v27c7-1 14 0 19 4z" fill="#eff1f5"/>
+  <path d="M32 21c5-4 12-5 19-4v27c-7-1-14 0-19 4z" fill="#dce0e8"/>
+  <path d="M32 21v27" stroke="#7287fd" stroke-width="2" stroke-linecap="round"/>
+  <path d="M17 25h10M17 30h10M17 35h7" stroke="#bcc0cc" stroke-width="2" stroke-linecap="round"/>
+  <g fill="none" stroke="#1e66f5" stroke-width="2.6" stroke-linecap="round">
+    <path d="M38 28a5 5 0 0 1 0 8"/>
+    <path d="M42 24.5a10 10 0 0 1 0 15"/>
+  </g>
+  <path d="M48 7l1.6 3.4 3.4 1.6-3.4 1.6L48 17l-1.6-3.4L43 12l3.4-1.6z" fill="#df8e1d"/>
+</svg>
