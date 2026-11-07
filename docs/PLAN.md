@@ -85,7 +85,7 @@ Demo 案例：喜歡恐龍、第一次上學而害怕。產出以恐龍角色經
 以下由使用者於 2026-11-07 依 T0 實測確認；實測數據見第 5 節。
 - **故事文字**：Responses API，模型 `gpt-6-luna`、reasoning effort `medium`，Structured Outputs（`json_schema`，strict），`store: false`。模型與 reasoning effort 由部署設定（Worker 環境變數 `OPENAI_TEXT_MODEL`、`OPENAI_TEXT_REASONING_EFFORT`）調整，不是使用者選單；未設定時用上述預設值。要調整時寫在 `wrangler.jsonc` 的 `vars`：dashboard 設定的變數可能在下次 `wrangler deploy`（含 Workers Builds）時被覆蓋。
 - **封面**：Images API，模型 `gpt-image-2.6-flare`，動態 GIF（`output_format: "gif"`，預設 9 張影格），尺寸 `512x512`，品質 `low`。1024x1024 搭配 9 張影格會超過像素上限而回 400，不可使用。GIF 需要帳戶具備 GIF preview 權限。
-- **朗讀**：瀏覽器內建 `speechSynthesis`，每句一個 utterance，用 `start`／`end`／`error` 事件控制高亮；`lang` 為 `en-US`。聲音用裝置的預設 en-US 聲音，沒有就用任一 `en-*` 聲音。語速由前端建置設定調整，預設 `0.1`。各裝置的聲音與實際最低語速不同（使用者試聽時 0.1 與 0.3 在部分裝置上差異不大），這是已接受的限制。OpenAI 語音以加分項提供，規則見 3.8。
+- **朗讀**：瀏覽器內建 `speechSynthesis`，每句一個 utterance；按下播放就高亮該句，不等 `start` 事件（讓暫停鈕立即可用），由該句的 `end`／`error` 事件清除高亮；`lang` 為 `en-US`。聲音用裝置的預設 en-US 聲音，沒有就用任一 `en-*` 聲音。語速由前端建置設定調整，預設 `0.1`。各裝置的聲音與實際最低語速不同（使用者試聽時 0.1 與 0.3 在部分裝置上差異不大），這是已接受的限制。OpenAI 語音以加分項提供，規則見 3.8。
 - **輸入上限**：去除頭尾空白後，角色 1–30 字元、生活情境 1–100 字元，字元以 Unicode code point 計算（前端與 Worker 相同；中文字、英文字母各算 1，組合 emoji 可能算成多個）；key 必填、不得含空白、最多 200 字元；頁數必填，為 4–10 的整數，預設 4。超過上限不送出生成請求，並指出需要修正的欄位。
 - **逾時**：Worker 對 OpenAI 的請求上限為文字 60 秒、封面 120 秒；加分項 OpenAI 語音（3.8）單句 30 秒。瀏覽器對 Worker 的逾時各多 10 秒，讓 Worker 的逾時錯誤先回到前端。逾時一律結束為失敗，不自動重試。
 - **OpenAI 呼叫方式**：Worker 直接用 `fetch` 呼叫 OpenAI REST API，不引入 `openai` SDK，因此沒有 SDK 內建重試（預設 2 次）或 SDK log 需要關閉；每個請求以 `AbortSignal.timeout` 套用上述逾時。

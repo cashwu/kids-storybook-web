@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import { effectScope } from 'vue'
 import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
 import type { GenerateStoryResult, StoryApi } from '../api/storyApi'
+import { createFakeSpeechEngine, enUS } from '../speech/fakeSpeechEngine'
+import { useNarration } from '../speech/useNarration'
 import { useStoryGeneration } from './useStoryGeneration'
 
 const KEY = 'sk-test-fake0000'
@@ -30,11 +33,19 @@ function fakeApi() {
 
 const fail = (error: StoryApiErrorCode): GenerateStoryResult => ({ ok: false, error })
 
+/** 真的 useNarration 搭配假 engine，讓測試能觀察替換故事時朗讀高亮與 engine.cancel 的實際結果。 */
+function fakeNarration() {
+  const engine = createFakeSpeechEngine([enUS])
+  const narration = effectScope().run(() => useNarration({ engine, rate: 0.1 }))!
+  return { engine, narration }
+}
+
 function setup() {
   const fake = fakeApi()
-  const gen = useStoryGeneration(fake.api)
+  const speech = fakeNarration()
+  const gen = useStoryGeneration(fake.api, speech.narration)
   gen.form.apiKey = KEY
-  return { ...fake, gen }
+  return { ...fake, ...speech, gen }
 }
 
 /** 送出並以指定結果完成這次請求。 */
@@ -47,7 +58,7 @@ async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryRe
 describe('useStoryGeneration 初始狀態', () => {
   // 角色與情境預填 Demo 案例方便測試；key 一律不預填（PLAN 3.1）。
   it('角色與情境預填 Demo 案例、頁數預設 4、key 空白，沒有故事且表單展開', () => {
-    const gen = useStoryGeneration(fakeApi().api)
+    const gen = useStoryGeneration(fakeApi().api, fakeNarration().narration)
 
     expect(gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 4, apiKey: '' })
     expect(gen.story.value).toBeNull()
@@ -190,6 +201,37 @@ describe('useStoryGeneration 建立新故事', () => {
     expect(ctx.gen.story.value).toEqual(makeStory('B'))
     expect(ctx.gen.storyVersion.value).toBe(versionA + 1)
     expect(ctx.gen.formOpen.value).toBe(false)
+  })
+
+  // A6：替換成 B 時若不停止 A 的朗讀，裝置會繼續念 A 的句子；而且句子 id 只由頁碼與句序組成，
+  // A 的 p0-s0 高亮會直接落在 B 第一頁第一句上，看起來像 B 的句子在念 A 的內容。
+  //
+  // 生成 B 期間刻意讓 A 繼續朗讀：B 還可能失敗，此時不該打斷正在讀 A 的使用者。
+  it('A 正在朗讀時，B 生成中仍繼續朗讀，B 文字成功替換時停止朗讀並清除高亮', async () => {
+    const ctx = await withStoryA()
+    ctx.narration.toggle('p0-s0', 'A page 1.')
+
+    const done = ctx.gen.submit()
+    expect(ctx.narration.activeId.value).toBe('p0-s0')
+    const cancelsBeforeReplace = ctx.engine.cancelCount
+    ctx.respond({ ok: true, story: makeStory('B') })
+    await done
+
+    expect(ctx.gen.story.value).toEqual(makeStory('B'))
+    expect(ctx.narration.activeId.value).toBeNull()
+    expect(ctx.engine.cancelCount).toBeGreaterThan(cancelsBeforeReplace)
+  })
+
+  // A6 的另一半：B 失敗時 A 仍是目前的故事，正在念的 A 不該被打斷。
+  it('A 正在朗讀時 B 文字失敗，A 的朗讀不受影響', async () => {
+    const ctx = await withStoryA()
+    ctx.narration.toggle('p0-s0', 'A page 1.')
+    const cancelsBefore = ctx.engine.cancelCount
+
+    await submitWith(ctx, fail('invalid_story'))
+
+    expect(ctx.narration.activeId.value).toBe('p0-s0')
+    expect(ctx.engine.cancelCount).toBe(cancelsBefore)
   })
 
   it('有故事時可以收起表單；沒有故事或生成中時不能收起', async () => {

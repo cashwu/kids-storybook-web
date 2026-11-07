@@ -25,7 +25,7 @@ const unavailableMessage = computed(() => {
 })
 
 // 句子 id 由頁碼與句序組成，只在目前這本故事內唯一；替換故事時 App 以 storyVersion 重建本元件讓頁碼歸零，
-// 停止舊故事的朗讀由 T3 處理。
+// useStoryGeneration 在替換前停止朗讀，舊故事的高亮才不會落在新故事同位置的句子上。
 const sentenceId = (sentenceIndex: number) => `p${reader.pageIndex.value}-s${sentenceIndex}`
 
 function playLabel(id: string) {

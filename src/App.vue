@@ -7,7 +7,7 @@ import { createBrowserSpeechEngine } from './speech/browserSpeechEngine'
 import { useNarration } from './speech/useNarration'
 import { parseSpeechRate } from './speech/voice'
 
-// 朗讀狀態放在 App 層，替換故事時才能在同一處停止舊故事的朗讀（PLAN 3.3，由 T3 接上）。
+// 朗讀狀態放在 App 層、跨故事共用一份，替換故事時由 useStoryGeneration 停止舊故事的朗讀（PLAN 3.3）。
 const narration = useNarration({
   engine: createBrowserSpeechEngine(),
   rate: parseSpeechRate(import.meta.env.VITE_SPEECH_RATE),
@@ -18,6 +18,7 @@ const generation = useStoryGeneration(
     fetch: (input, init) => fetch(input, init),
     timeoutSignal: (ms) => AbortSignal.timeout(ms),
   }),
+  narration,
 )
 const { story, storyVersion, formOpen } = generation
 </script>

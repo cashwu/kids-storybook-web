@@ -30,11 +30,13 @@ export interface StoryGeneration {
  * - 生成中再次送出直接忽略：避免重複計費，也避免兩個回應互相覆蓋。
  * - 不自動重試：失敗只記錄錯誤類別並保留輸入（含 key），使用者自己決定是否再送。
  * - 文字成功（client 已驗證格式）才替換故事；失敗時舊故事原封不動。
+ * - 替換故事前先停止朗讀（PLAN 3.3、A6）：句子 id 只由頁碼與句序組成，不停止的話舊故事的高亮
+ *   會落在新故事同位置的句子上，裝置也會繼續念舊故事。生成中與失敗時不停止，舊故事仍是目前的書。
  *
  * key 只存在 form 這個當頁記憶體物件裡，不寫入故事資料、URL 或瀏覽器儲存（PLAN 3.2）。
- * 替換故事時停止舊朗讀屬於 T3，這裡只提供 storyVersion 讓閱讀區在換書時重新從第一頁開始。
+ * storyVersion 讓閱讀區在換書時重建、從第一頁開始。
  */
-export function useStoryGeneration(api: StoryApi): StoryGeneration {
+export function useStoryGeneration(api: StoryApi, narration: { stop(): void }): StoryGeneration {
   const form = reactive<StoryInput>({
     character: DEMO_CHARACTER,
     situation: DEMO_SITUATION,
@@ -62,6 +64,7 @@ export function useStoryGeneration(api: StoryApi): StoryGeneration {
 
     const result = await api.generateStory(checked.value)
     if (result.ok) {
+      narration.stop()
       story.value = result.story
       storyVersion.value += 1
       status.value = 'idle'
