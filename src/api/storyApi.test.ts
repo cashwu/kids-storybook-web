@@ -4,11 +4,16 @@ import { createStoryApi } from './storyApi'
 
 // 注入假的 fetch 與逾時 signal，不連到 Worker；只能證明瀏覽器端送出的請求形狀與回應解讀。
 const KEY = 'sk-test-fake0000'
-const input = { character: '恐龍', situation: '第一次上學', apiKey: KEY }
+const input = { character: '恐龍', situation: '第一次上學', pageCount: 4, apiKey: KEY }
 
 const story: Story = {
   title: { en: 'Dino', zh: '小恐龍' },
-  pages: [1, 2, 3, 4].map((p) => ({ sentences: [{ en: `Page ${p}.`, zh: `第 ${p} 頁。` }] })),
+  pages: [1, 2, 3, 4].map((p) => ({
+    sentences: [
+      { en: `Page ${p}.`, zh: `第 ${p} 頁。` },
+      { en: 'Again.', zh: '再一次。' },
+    ],
+  })),
 }
 
 function setup(respond: (init: RequestInit) => Response | Promise<Response> = () => Response.json({ story })) {
@@ -27,7 +32,7 @@ function setup(respond: (init: RequestInit) => Response | Promise<Response> = ()
 
 describe('createStoryApi().generateStory', () => {
   // key 只能放在 Authorization：Cloudflare 的 log 會完整記錄 URL 與自訂 header（PLAN 3.2）。
-  it('以 POST 送到同網域 /api/story，key 只在 Authorization，body 只有角色與情境', async () => {
+  it('以 POST 送到同網域 /api/story，key 只在 Authorization，body 只有角色、情境與頁數', async () => {
     const { api, fetchMock } = setup()
 
     await api.generateStory(input)
@@ -38,7 +43,7 @@ describe('createStoryApi().generateStory', () => {
     const headers = new Headers(init?.headers)
     expect(headers.get('authorization')).toBe(`Bearer ${KEY}`)
     expect([...headers.keys()].sort()).toEqual(['authorization', 'content-type'])
-    expect(JSON.parse(String(init?.body))).toEqual({ character: '恐龍', situation: '第一次上學' })
+    expect(JSON.parse(String(init?.body))).toEqual({ character: '恐龍', situation: '第一次上學', pageCount: 4 })
   })
 
   it('套用 70 秒逾時 signal，比 Worker 的 60 秒多 10 秒', async () => {
@@ -61,6 +66,12 @@ describe('createStoryApi().generateStory', () => {
     const { api } = setup(() => Response.json({ story: { ...story, pages: story.pages.slice(0, 3) } }))
 
     expect(await api.generateStory(input)).toEqual({ ok: false, error: 'invalid_story' })
+  })
+
+  it('故事頁數與所選不同時回 invalid_story：選 6 頁卻拿到 4 頁', async () => {
+    const { api } = setup()
+
+    expect(await api.generateStory({ ...input, pageCount: 6 })).toEqual({ ok: false, error: 'invalid_story' })
   })
 
   it('Worker 的錯誤類別原樣回傳', async () => {

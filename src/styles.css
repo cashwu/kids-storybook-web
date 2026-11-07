@@ -64,8 +64,14 @@ input, textarea {
 input:disabled, textarea:disabled { background: var(--mantle); color: var(--overlay1); }
 input::placeholder, textarea::placeholder { color: var(--overlay0); }
 textarea { min-height: 84px; resize: vertical; }
-/* API key 欄位以遮蔽字元顯示，取代 type="password"（理由見 StoryForm.vue）。 */
-input.masked { -webkit-text-security: disc; text-security: disc; }
+input.page-count { width: 7em; }
+/* API key 離開欄位後的遮蔽顯示；不用 -webkit-text-security，理由見 StoryForm.vue。 */
+.key-masked {
+  width: 100%; text-align: left; border: 1px solid var(--surface0); border-radius: 10px;
+  padding: 10px 46px 10px 12px; background: #fff; letter-spacing: 0.15em; color: var(--text);
+}
+.key-masked:disabled { background: var(--mantle); color: var(--overlay1); }
+.field.bad .key-masked { border-color: var(--red); background: var(--tint-red); }
 .keywrap { position: relative; }
 .keywrap input { padding-right: 46px; }
 .eye {
@@ -148,7 +154,8 @@ input.masked { -webkit-text-security: disc; text-security: disc; }
 .btn.ghost { background: var(--base); border: 1px solid var(--surface0); color: var(--text); padding: 8px 12px; }
 .btn.ghost:disabled { color: var(--overlay0); }
 .pager { display: flex; align-items: center; justify-content: space-between; padding: 4px 20px 18px; gap: 8px; }
-.dots { display: flex; gap: 6px; }
+/* 最多 10 頁：手機寬度放不下一排時換行，不撐破翻頁列。 */
+.dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; flex: 1 1 auto; min-width: 0; }
 .dots button {
   width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--surface0);
   background: var(--base); font-size: 12.5px; font-weight: 650;

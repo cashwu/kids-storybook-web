@@ -42,7 +42,7 @@ const { story, storyVersion, formOpen } = generation
         <div class="empty">
           <div class="big" aria-hidden="true">{{ generation.status.value === 'generating' ? '✍️' : '🦕' }}</div>
           <h3>{{ generation.status.value === 'generating' ? '故事正在寫…' : '故事會出現在這裡' }}</h3>
-          <div>一本 4 頁的中英對照故事，每句英文都能點來聽。</div>
+          <div>一本中英對照的故事（預設 4 頁），每句英文都能點來聽。</div>
         </div>
       </section>
     </main>

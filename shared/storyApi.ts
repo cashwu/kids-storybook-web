@@ -3,7 +3,7 @@ import type { Story } from './story'
 import type { StoryInputField } from './storyInput'
 
 /**
- * POST，key 只放在 `Authorization: Bearer <key>`；body 只有角色與情境。
+ * POST，key 只放在 `Authorization: Bearer <key>`；body 只有角色、情境與頁數。
  * key 不可放進 body、query 或自訂 header：Cloudflare 的 log 只遮蔽 Authorization（PLAN 3.2）。
  */
 export const STORY_API_PATH = '/api/story'
@@ -11,6 +11,8 @@ export const STORY_API_PATH = '/api/story'
 export interface StoryRequestBody {
   character: string
   situation: string
+  /** 4–10 的整數，規則見 shared/storyInput.ts。 */
+  pageCount: number
 }
 
 export interface StorySuccessBody {
@@ -44,7 +46,7 @@ export type StoryApiErrorCode =
   | 'upstream_error'
   /** 模型拒絕產生這個故事。 */
   | 'story_refused'
-  /** 模型輸出不符合四頁雙語格式，沒有採用。 */
+  /** 模型輸出不符合所選頁數的雙語格式，沒有採用。 */
   | 'invalid_story'
 
 // Record 讓新增錯誤類別時一定要同步這份清單，前端才不會把新的代碼誤判成未知錯誤。

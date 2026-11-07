@@ -1,7 +1,7 @@
 import { reactive, readonly, ref, shallowRef, type Ref } from 'vue'
 import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
-import { validateStoryInput, type StoryInput, type StoryInputErrors } from '../../shared/storyInput'
+import { PAGE_COUNT_DEFAULT, validateStoryInput, type StoryInput, type StoryInputErrors } from '../../shared/storyInput'
 import type { StoryApi } from '../api/storyApi'
 
 export const DEMO_CHARACTER = '恐龍'
@@ -35,7 +35,12 @@ export interface StoryGeneration {
  * 替換故事時停止舊朗讀屬於 T3，這裡只提供 storyVersion 讓閱讀區在換書時重新從第一頁開始。
  */
 export function useStoryGeneration(api: StoryApi): StoryGeneration {
-  const form = reactive<StoryInput>({ character: DEMO_CHARACTER, situation: DEMO_SITUATION, apiKey: '' })
+  const form = reactive<StoryInput>({
+    character: DEMO_CHARACTER,
+    situation: DEMO_SITUATION,
+    pageCount: PAGE_COUNT_DEFAULT,
+    apiKey: '',
+  })
   const fieldErrors = ref<StoryInputErrors>({})
   const status = ref<GenerationStatus>('idle')
   const error = ref<StoryApiErrorCode | null>(null)

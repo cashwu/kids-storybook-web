@@ -57,14 +57,22 @@ function readKey(request: Request): string {
   return header.startsWith('Bearer ') ? header.slice('Bearer '.length) : ''
 }
 
-async function readBody(request: Request): Promise<{ character: string; situation: string } | null> {
+interface StoryBody {
+  character: string
+  situation: string
+  pageCount: number
+}
+
+/** 型別不符的欄位換成必定驗證失敗的值，交給 validateStoryInput 統一指出欄位。 */
+async function readBody(request: Request): Promise<StoryBody | null> {
   try {
     const body: unknown = await request.json()
     if (typeof body !== 'object' || body === null) return null
-    const { character, situation } = body as Record<string, unknown>
+    const { character, situation, pageCount } = body as Record<string, unknown>
     return {
       character: typeof character === 'string' ? character : '',
       situation: typeof situation === 'string' ? situation : '',
+      pageCount: typeof pageCount === 'number' ? pageCount : Number.NaN,
     }
   } catch {
     return null
@@ -79,7 +87,7 @@ function isTimeout(error: unknown, signal: AbortSignal): boolean {
 async function handleStory(request: Request, env: Env, deps: WorkerDeps): Promise<Response> {
   if (request.method !== 'POST') return errorResponse('method_not_allowed')
 
-  const body = (await readBody(request)) ?? { character: '', situation: '' }
+  const body = (await readBody(request)) ?? { character: '', situation: '', pageCount: Number.NaN }
   const checked = validateStoryInput({ ...body, apiKey: readKey(request) })
   if (!checked.ok) return errorResponse('invalid_input', Object.keys(checked.errors) as StoryInputField[])
   const { apiKey, ...input } = checked.value
@@ -105,7 +113,7 @@ async function handleStory(request: Request, env: Env, deps: WorkerDeps): Promis
       if (isTimeout(error, signal)) throw error
       return errorResponse('upstream_error')
     }
-    const result = parseStoryTextResponse(responseBody)
+    const result = parseStoryTextResponse(responseBody, input.pageCount)
     return result.ok ? json({ story: result.story }) : errorResponse(result.error)
   } catch (error) {
     return errorResponse(isTimeout(error, signal) ? 'timeout' : 'network_error')

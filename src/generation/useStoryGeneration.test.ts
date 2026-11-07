@@ -46,10 +46,10 @@ async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryRe
 
 describe('useStoryGeneration 初始狀態', () => {
   // 角色與情境預填 Demo 案例方便測試；key 一律不預填（PLAN 3.1）。
-  it('角色與情境預填 Demo 案例、key 空白，沒有故事且表單展開', () => {
+  it('角色與情境預填 Demo 案例、頁數預設 4、key 空白，沒有故事且表單展開', () => {
     const gen = useStoryGeneration(fakeApi().api)
 
-    expect(gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', apiKey: '' })
+    expect(gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 4, apiKey: '' })
     expect(gen.story.value).toBeNull()
     expect(gen.formOpen.value).toBe(true)
     expect(gen.status.value).toBe('idle')
@@ -60,23 +60,25 @@ describe('useStoryGeneration 送出', () => {
   it('輸入不合格時標出欄位，不送出請求', async () => {
     const ctx = setup()
     ctx.gen.form.character = '   '
+    ctx.gen.form.pageCount = 11
     ctx.gen.form.apiKey = ''
 
     await ctx.gen.submit()
 
-    expect(ctx.gen.fieldErrors.value).toEqual({ character: 'required', apiKey: 'required' })
+    expect(ctx.gen.fieldErrors.value).toEqual({ character: 'required', pageCount: 'out_of_range', apiKey: 'required' })
     expect(ctx.calls()).toHaveLength(0)
     expect(ctx.gen.status.value).toBe('idle')
   })
 
-  it('合格時以去除頭尾空白的輸入送出，期間狀態為 generating', async () => {
+  it('合格時以去除頭尾空白的輸入與所選頁數送出，期間狀態為 generating', async () => {
     const ctx = setup()
     ctx.gen.form.character = ' 恐龍 '
+    ctx.gen.form.pageCount = 10
 
     const done = ctx.gen.submit()
 
     expect(ctx.gen.status.value).toBe('generating')
-    expect(ctx.calls()[0]?.[0]).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', apiKey: KEY })
+    expect(ctx.calls()[0]?.[0]).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 10, apiKey: KEY })
     ctx.respond({ ok: true, story: makeStory('A') })
     await done
   })
@@ -136,7 +138,7 @@ describe('useStoryGeneration 失敗與手動重試', () => {
     expect(ctx.gen.status.value).toBe('failed')
     expect(ctx.gen.error.value).toBe('invalid_key')
     expect(ctx.gen.story.value).toBeNull()
-    expect(ctx.gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', apiKey: KEY })
+    expect(ctx.gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 4, apiKey: KEY })
     expect(ctx.gen.formOpen.value).toBe(true)
   })
 

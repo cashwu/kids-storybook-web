@@ -32,12 +32,12 @@ function parseError(body: unknown): GenerateStoryResult {
 /**
  * 每次呼叫只送一次請求，不自動重試（PLAN 3.3）；逾時或網路錯誤一律結束為失敗，由使用者決定是否手動重試。
  * key 只放在 Authorization header，不放進 URL、body 或自訂 header（PLAN 3.2）。
- * 成功回應在前端再驗證一次，不合格就當成 invalid_story，不讓不完整的故事被發佈。
+ * 成功回應在前端再以所選頁數驗證一次，不合格就當成 invalid_story，不讓不完整的故事被發佈。
  */
 export function createStoryApi(deps: StoryApiDeps): StoryApi {
   return {
-    async generateStory({ character, situation, apiKey }) {
-      const body: StoryRequestBody = { character, situation }
+    async generateStory({ character, situation, pageCount, apiKey }) {
+      const body: StoryRequestBody = { character, situation, pageCount }
       const signal = deps.timeoutSignal(BROWSER_TEXT_TIMEOUT_MS)
       let res: Response
       let json: unknown
@@ -60,7 +60,7 @@ export function createStoryApi(deps: StoryApiDeps): StoryApi {
       }
 
       if (!res.ok) return parseError(json)
-      const story = validateStory((json as { story?: unknown } | undefined)?.story)
+      const story = validateStory((json as { story?: unknown } | undefined)?.story, pageCount)
       return story ? { ok: true, story } : { ok: false, error: 'invalid_story' }
     },
   }

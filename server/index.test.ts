@@ -13,7 +13,10 @@ const env: Env = {}
 const story: Story = {
   title: { en: "Dino's First Day", zh: '小恐龍上學去' },
   pages: [0, 1, 2, 3].map((p) => ({
-    sentences: [{ en: `Dino is on page ${p + 1}.`, zh: `小恐龍在第 ${p + 1} 頁。` }],
+    sentences: [
+      { en: `Dino is on page ${p + 1}.`, zh: `小恐龍在第 ${p + 1} 頁。` },
+      { en: 'He is happy.', zh: '他很開心。' },
+    ],
   })),
 }
 
@@ -24,7 +27,7 @@ function storyRequest(options: { url?: string; key?: string | null; body?: unkno
   return new Request(options.url ?? 'https://example.test/api/story', {
     method,
     headers,
-    body: method === 'GET' ? undefined : JSON.stringify(options.body ?? { character: '恐龍', situation: '第一次上學' }),
+    body: method === 'GET' ? undefined : JSON.stringify(options.body ?? { character: '恐龍', situation: '第一次上學', pageCount: 4 }),
   })
 }
 
@@ -127,6 +130,9 @@ describe('POST /api/story 成功', () => {
     expect(body.store).toBe(false)
     expect(body.text.format).toMatchObject({ type: 'json_schema', strict: true })
     expect(body.text.format.schema.properties.pages).toMatchObject({ minItems: 4, maxItems: 4 })
+    // 每頁固定 2 句：schema 與指示都要明確要求，模型才不會每頁只寫一句。
+    expect(body.text.format.schema.properties.pages.items.properties.sentences).toMatchObject({ minItems: 2, maxItems: 2 })
+    expect(JSON.stringify(body.input)).toContain('exactly 2')
   })
 
   it('未設定環境變數時使用 gpt-6-luna 與 medium；設定時使用部署設定的值', async () => {
@@ -146,13 +152,27 @@ describe('POST /api/story 成功', () => {
   it('送給模型的需求包含去除頭尾空白的角色、情境與固定的 4–5 歲對象', async () => {
     const { handler, fetchMock } = setup()
 
-    await handler.fetch(storyRequest({ body: { character: '  消防車 ', situation: ' 明天要看牙醫 ' } }), env)
+    await handler.fetch(storyRequest({ body: { character: '  消防車 ', situation: ' 明天要看牙醫 ', pageCount: 4 } }), env)
 
     const input = JSON.stringify(sentBody(fetchMock).input)
     expect(input).toContain('消防車')
     expect(input).toContain('明天要看牙醫')
     expect(input).not.toContain('  消防車 ')
     expect(input).toMatch(/4[–-]5/)
+  })
+
+  // 使用者選的頁數要同時進入模型指示與 JSON schema，並用來驗證輸出（PLAN 3.1、A2、A4）。
+  it('選 6 頁時，指示與 schema 都要求 6 頁，模型回 6 頁才成功', async () => {
+    const sixPages = { ...story, pages: [...story.pages, ...story.pages.slice(0, 2)] }
+    const { handler, fetchMock } = setup(() => openAIText(sixPages))
+
+    const res = await handler.fetch(storyRequest({ body: { character: '恐龍', situation: '上學', pageCount: 6 } }), env)
+
+    const body = sentBody(fetchMock)
+    expect(body.text.format.schema.properties.pages).toMatchObject({ minItems: 6, maxItems: 6 })
+    expect(JSON.stringify(body.input)).toContain('Exactly 6 pages')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ story: sixPages })
   })
 
   it('模型輸出通過驗證時回 200 與故事，並禁止快取', async () => {
@@ -178,10 +198,13 @@ describe('POST /api/story 成功', () => {
 describe('POST /api/story 輸入檢查', () => {
   // 輸入不合格時連 OpenAI 都不呼叫，避免浪費使用者的額度（A2）。
   it.each([
-    ['角色只有空白', { body: { character: '   ', situation: '上學' } }, ['character']],
-    ['情境 101 字元', { body: { character: '恐龍', situation: 'a'.repeat(101) } }, ['situation']],
-    ['角色不是字串', { body: { character: 1, situation: '上學' } }, ['character']],
-    ['body 不是 JSON 物件', { body: 'oops' }, ['character', 'situation']],
+    ['角色只有空白', { body: { character: '   ', situation: '上學', pageCount: 4 } }, ['character']],
+    ['情境 101 字元', { body: { character: '恐龍', situation: 'a'.repeat(101), pageCount: 4 } }, ['situation']],
+    ['角色不是字串', { body: { character: 1, situation: '上學', pageCount: 4 } }, ['character']],
+    ['頁數 11', { body: { character: '恐龍', situation: '上學', pageCount: 11 } }, ['pageCount']],
+    ['沒有頁數', { body: { character: '恐龍', situation: '上學' } }, ['pageCount']],
+    ['頁數是字串', { body: { character: '恐龍', situation: '上學', pageCount: '6' } }, ['pageCount']],
+    ['body 不是 JSON 物件', { body: 'oops' }, ['character', 'situation', 'pageCount']],
     ['沒有 Authorization', { key: null }, ['apiKey']],
     ['key 超過 200 字元', { key: 'k'.repeat(201) }, ['apiKey']],
   ] as const)('%s時回 400 invalid_input 並指出欄位', async (_name, options, fields) => {
@@ -204,7 +227,7 @@ describe('POST /api/story 輸入檢查', () => {
 
     const res = await handler.fetch(request, env)
 
-    expect(await res.json()).toEqual({ error: 'invalid_input', fields: ['character', 'situation'] })
+    expect(await res.json()).toEqual({ error: 'invalid_input', fields: ['character', 'situation', 'pageCount'] })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
@@ -285,8 +308,10 @@ describe('POST /api/story 失敗', () => {
 
   // A4：不合格的輸出不能當成故事回給瀏覽器，否則前端會把它發佈並開始請求封面。
   it.each([
-    ['只有三頁', () => openAIText({ ...story, pages: story.pages.slice(0, 3) })],
-    ['英文是空字串', () => openAIText({ ...story, pages: [{ sentences: [{ en: '', zh: '空' }] }, ...story.pages.slice(1)] })],
+    ['選 4 頁卻只有三頁', () => openAIText({ ...story, pages: story.pages.slice(0, 3) })],
+    ['某頁只有一句', () => openAIText({ ...story, pages: [{ sentences: [story.pages[0]!.sentences[0]!] }, ...story.pages.slice(1)] })],
+    // 句數維持 2 句，讓這個案例只違反「英文非空」，不會先被句數檢查擋下。
+    ['英文是空字串', () => openAIText({ ...story, pages: [{ sentences: [{ en: '', zh: '空' }, story.pages[0]!.sentences[1]!] }, ...story.pages.slice(1)] })],
     ['輸出不是 JSON', () => openAIText('Once upon a time')],
     ['沒有 message 輸出', () => Response.json({ status: 'completed', output: [] })],
     // 截斷的內容即使剛好是合格故事也不採用，因此這裡放完整的故事 JSON，只有 status 不同。

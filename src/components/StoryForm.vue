@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { StoryInputField } from '../../shared/storyInput'
+import { computed, nextTick, ref, watch } from 'vue'
+import { PAGE_COUNT_MAX, PAGE_COUNT_MIN, type StoryInputField } from '../../shared/storyInput'
 import { fieldErrorMessage, STORY_ERROR_MESSAGES } from '../generation/messages'
+import { isSubmitEnter } from '../generation/submitKey'
 import type { StoryGeneration } from '../generation/useStoryGeneration'
 
 // 只負責呈現與轉發操作；送出條件、防重複提交與失敗處理都在 useStoryGeneration（tdd.md 1）。
@@ -19,8 +20,33 @@ const buttonLabel = computed(() => {
   return hasStory.value ? '✨ 產生新故事' : '✨ 產生故事'
 })
 
-// 只影響顯示，不改變 key 的存放位置；預設遮蔽，表單重新展開時元件重建，會回到遮蔽狀態。
+// key 欄位的遮蔽只影響顯示，不改變 key 的存放位置（只在 form 這個當頁記憶體物件）。
+// 不用 type="password" 或 CSS 的 -webkit-text-security：Safari 會把兩者都當成密碼欄位，
+// 送出後提議「儲存密碼」，使用者一按 key 就進了持久儲存（PLAN 3.2、A9）。
+// 改成：輸入中（focus）顯示明文，離開欄位後換成固定長度的圓點，按圓點或眼睛按鈕才再顯示。
+// 表單重新展開時元件重建，會回到遮蔽狀態。
 const showKey = ref(false)
+const editingKey = ref(false)
+const keyInput = ref<HTMLInputElement | null>(null)
+const keyMasked = computed(() => !showKey.value && !editingKey.value && form.apiKey !== '')
+// 送出後欄位變成 disabled，部分瀏覽器不會觸發 blur，editingKey 會一直是 true，
+// key 就在生成中與失敗後持續以明文顯示；因此開始生成時一律回到遮蔽。
+watch(busy, (isBusy) => {
+  if (isBusy) editingKey.value = false
+})
+
+async function editKey() {
+  editingKey.value = true
+  await nextTick()
+  keyInput.value?.focus()
+}
+
+// 不用 <form>（同樣會被 Safari 當成登入表單），單行欄位的 Enter 由這裡送出；輸入法選字的 Enter 不送出。
+function submitOnEnter(event: KeyboardEvent) {
+  if (!isSubmitEnter(event)) return
+  event.preventDefault()
+  void props.generation.submit()
+}
 
 function errorOf(field: StoryInputField) {
   const e = fieldErrors.value[field]
@@ -42,13 +68,14 @@ function errorOf(field: StoryInputField) {
       }}
     </p>
 
-    <form novalidate @submit.prevent="generation.submit()">
+    <div class="form-body">
       <div class="field" :class="{ bad: errorOf('character') }">
         <label for="character">喜歡的角色</label>
         <input
           id="character"
           v-model="form.character"
           :disabled="busy"
+          @keydown="submitOnEnter"
           placeholder="例如：恐龍、小兔子、消防車"
           :aria-invalid="!!errorOf('character')"
           aria-describedby="character-err"
@@ -69,22 +96,52 @@ function errorOf(field: StoryInputField) {
         <div v-if="errorOf('situation')" id="situation-err" class="err">{{ errorOf('situation') }}</div>
       </div>
 
+      <div class="field" :class="{ bad: errorOf('pageCount') }">
+        <label for="page-count">頁數（{{ PAGE_COUNT_MIN }}–{{ PAGE_COUNT_MAX }} 頁，每頁 2 句）</label>
+        <input
+          id="page-count"
+          v-model.number="form.pageCount"
+          type="number"
+          inputmode="numeric"
+          :min="PAGE_COUNT_MIN"
+          :max="PAGE_COUNT_MAX"
+          step="1"
+          class="page-count"
+          :disabled="busy"
+          @keydown="submitOnEnter"
+          :aria-invalid="!!errorOf('pageCount')"
+          aria-describedby="page-count-err"
+        />
+        <div v-if="errorOf('pageCount')" id="page-count-err" class="err">{{ errorOf('pageCount') }}</div>
+      </div>
+
       <div class="keybox">
         <div class="field" :class="{ bad: errorOf('apiKey') }">
           <label for="api-key">你的 OpenAI API key</label>
           <!--
-            key 只綁在 form 這個當頁記憶體物件。刻意不用 type="password"：送出成功後表單會收合，
-            瀏覽器與密碼管理器會把這當成登入成功並提議「儲存密碼」，使用者一按 key 就進了持久儲存（PLAN 3.2、A9）。
-            改用一般文字欄位加 CSS 遮蔽：不會觸發密碼管理器的儲存提示；行動鍵盤的自動校正與學習、
-            Grammarly 等擴充套件以 autocorrect 與忽略屬性盡量避免，實際效果待真實瀏覽器確認。
-            不支援 CSS 遮蔽的瀏覽器會顯示明文。
+            離開欄位後顯示圓點按鈕，輸入中顯示明文欄位（理由見 script 的 showKey 註解）。
+            輸入欄位的屬性用來避免行動鍵盤學習 key、密碼管理器與 Grammarly 等擴充套件讀取或保存，實際效果依瀏覽器而定。
           -->
           <div class="keywrap">
-            <input
+            <!-- 與輸入欄位共用 id：兩者是 v-if/v-else，同時只存在一個，label 點擊與錯誤訊息的關聯在遮蔽時仍有效。 -->
+            <button
+              v-if="keyMasked"
               id="api-key"
+              type="button"
+              class="key-masked"
+              :disabled="busy"
+              aria-label="API key 已輸入，按下以編輯"
+              aria-describedby="api-key-err"
+              @click="editKey"
+            >
+              ••••••••••••
+            </button>
+            <input
+              v-else
+              id="api-key"
+              ref="keyInput"
               v-model="form.apiKey"
               type="text"
-              :class="{ masked: !showKey }"
               autocomplete="off"
               autocapitalize="off"
               autocorrect="off"
@@ -100,6 +157,9 @@ function errorOf(field: StoryInputField) {
               placeholder="sk-…"
               :aria-invalid="!!errorOf('apiKey')"
               aria-describedby="api-key-err"
+              @focus="editingKey = true"
+              @blur="editingKey = false"
+              @keydown="submitOnEnter"
             />
             <button
               type="button"
@@ -121,10 +181,10 @@ function errorOf(field: StoryInputField) {
         </ul>
       </div>
 
-      <button type="submit" class="btn primary" :disabled="busy">
-        <span v-if="busy" class="spin" aria-hidden="true" />{{ buttonLabel }}
+      <button type="button" class="btn primary" :disabled="busy" @click="generation.submit()">
+        {{ buttonLabel }}
       </button>
-    </form>
+    </div>
 
     <div v-if="busy" class="status info" role="status">
       <span class="spin" aria-hidden="true" />

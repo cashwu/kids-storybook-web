@@ -9,7 +9,7 @@
 
 ## 專案概觀
 
-**生活情境雙語有聲故事書**是給 Hack Day 現場自備 OpenAI API key 的使用者用的 web app：輸入孩子喜歡的角色與生活情境，產生四頁中英對照故事、一張 AI 封面與逐句英文朗讀（朗讀用瀏覽器內建語音合成；Vite＋Vue 3＋TypeScript 前端，單一 Cloudflare Worker＋Workers Static Assets 部署）：
+**生活情境雙語有聲故事書**是給 Hack Day 現場自備 OpenAI API key 的使用者用的 web app：輸入孩子喜歡的角色與生活情境，產生多頁中英對照故事、一張 AI 封面與逐句英文朗讀（朗讀用瀏覽器內建語音合成；Vite＋Vue 3＋TypeScript 前端，單一 Cloudflare Worker＋Workers Static Assets 部署）：
 
 - **故事文字**：Worker 的文字 API 呼叫 OpenAI，產出後先驗證頁數、句數、非空與一對一雙語對應，通過才發佈為新故事並開始素材請求。
 - **素材**：單張封面一個 API，瀏覽器管理處理中／成功／失敗狀態，失敗只手動重試封面；朗讀在瀏覽器完成，不經過 Worker。
