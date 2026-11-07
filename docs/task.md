@@ -129,7 +129,7 @@ T3 完成；封面模型、GIF 尺寸與逾時見 PLAN 3.7，圖片與 GIF 權�
 **依據**：PLAN 第 1–5 節，尤其第 3.6 節與 A1–A10。
 
 ### 範圍與工作項目
-- 將前端與 API 部署到同一 Cloudflare Worker＋Static Assets，確認同網域路由、靜態檔案與生成回應正常。
+- 將前端與 API 部署到同一 Cloudflare Worker＋Static Assets（已連接 GitHub，push 到 `main` 自動部署，見 tdd.md），確認同網域路由、靜態檔案與生成回應正常。
 - 在部署環境檢查記錄設定、key 不留存、不同使用者資料隔離與刷新後狀態；以 http 網址開啟會導向 https，非 https 的 `/api/*` 被拒絕。
 - 完成核心驗收並逐項記錄結果、環境、真實／模擬方式與仍未驗證項目。
 - 以恐龍第一次上學案例準備 Demo 操作流程，區分現場生成與事先生成材料。

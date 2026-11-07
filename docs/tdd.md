@@ -59,7 +59,7 @@ npm run build       # Vite 建置，同時產出 Static Assets（dist/client）�
 * 每次真實 API 呼叫都由使用者的 key 計費；agent 先列出要送出的請求種類、次數與目的，取得使用者本次同意後才執行。
 * key 由使用者以安全方式提供（例如當次 session 的環境變數或本機未追蹤的設定檔），不得寫入聊天、文件、測試、版本庫或試驗產出的 log。
 * 試驗檔案與輸出完成後檢查沒有 key；可拋棄的試驗腳本不留在版本庫，除非 task 要求保留。
-* Cloudflare 部署前取得使用者本次同意。
+* Cloudflare 部署前取得使用者本次同意。Worker `kids-storybook-web` 已連接 GitHub（Workers Builds）：push 到 `main` 會自動執行 `npm run build` 與 `npx wrangler deploy`，部署到 `kids-storybook-web.cashwu.workers.dev`；其他分支產生預覽版本。因此請求 push 到 `main` 的同意時，須說明這也會部署正式網址。
 * 結果（通過／不通過、真實或模擬、環境與實際觀察）記錄到 `PLAN.md` 第 5 節或該 task 的驗收紀錄；未執行時在收尾回報列為未執行，不宣稱已通過。
 
 ## 5. 完成條件
