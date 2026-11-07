@@ -1,0 +1,115 @@
+/* Catppuccin Latte（https://catppuccin.com/palette/），版面參考 docs/ui-mockup.html（PLAN 3.4）。 */
+:root {
+  --mauve: #8839ef; --red: #d20f39; --yellow: #df8e1d; --blue: #1e66f5; --lavender: #7287fd;
+  --text: #4c4f69; --subtext1: #5c5f77; --subtext0: #6c6f85; --overlay1: #8c8fa1; --overlay0: #9ca0b0;
+  --surface1: #bcc0cc; --surface0: #ccd0da; --base: #eff1f5; --mantle: #e6e9ef; --crust: #dce0e8;
+  --tint-yellow: color-mix(in srgb, var(--yellow) 16%, var(--base));
+  --tint-blue: color-mix(in srgb, var(--blue) 10%, var(--base));
+  --tint-lav: color-mix(in srgb, var(--lavender) 16%, var(--base));
+  --r: 18px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--mantle); color: var(--text);
+  font: 15px/1.6 system-ui, -apple-system, 'PingFang TC', 'Noto Sans TC', sans-serif;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--lavender); outline-offset: 2px; }
+
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 24px; border-bottom: 1px solid var(--crust); background: var(--base);
+}
+.brand { display: flex; gap: 10px; align-items: center; font-weight: 800; font-size: 18px; }
+.top small { color: var(--subtext0); }
+.layout { max-width: 880px; margin: 0 auto; padding: 20px 24px 28px; }
+.card { background: var(--base); border: 1px solid var(--crust); border-radius: var(--r); }
+.reader { overflow: hidden; }
+
+.status { border-radius: 12px; padding: 12px 14px; font-size: 13.5px; display: flex; gap: 10px; }
+.status .ic { font-size: 17px; line-height: 1.25; }
+.status.warn { background: var(--tint-yellow); }
+.status p { margin: 2px 0 0; color: var(--subtext1); }
+.banner { margin: 16px 20px 0; }
+
+.book-head {
+  display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 20px;
+  border-bottom: 1px solid var(--crust); align-items: center;
+}
+.cover {
+  aspect-ratio: 1 / 1; border-radius: 14px; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+}
+.cover.placeholder {
+  background: repeating-linear-gradient(45deg, var(--mantle) 0 12px, var(--crust) 12px 24px);
+  color: var(--subtext0);
+}
+.cover .art { font-size: 64px; }
+.cover .tag {
+  position: absolute; bottom: 7px; right: 7px; background: #4c4f69bb; color: var(--base);
+  font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+}
+.titles .eyebrow { font-size: 12px; letter-spacing: 0.08em; color: var(--mauve); font-weight: 700; }
+.titles h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; line-height: 1.2; margin: 4px 0 2px; }
+.titles .zh { font-size: 17px; color: var(--subtext1); margin: 0 0 10px; }
+.chip {
+  display: inline-flex; gap: 4px; align-items: center; font-size: 12px;
+  background: var(--tint-blue); color: var(--blue); border-radius: 999px; padding: 2px 10px;
+}
+
+.page { padding: 14px 20px 6px; }
+.page-label { font-size: 13px; color: var(--subtext0); margin-bottom: 8px; }
+.sent {
+  display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--crust);
+  border-radius: 16px; padding: 16px; margin-bottom: 12px; background: #fff; transition: 0.15s;
+}
+.sent.playing {
+  border-color: var(--lavender); background: var(--tint-lav);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lavender) 25%, transparent);
+}
+.sent .en { font-family: Georgia, 'Times New Roman', serif; font-size: 23px; line-height: 1.35; }
+.sent .zh { color: var(--subtext0); margin-top: 4px; }
+.sent .meta { font-size: 12px; margin-top: 8px; }
+.st.ok { color: var(--lavender); font-weight: 600; }
+.play {
+  flex-shrink: 0; width: 50px; height: 50px; border-radius: 50%; border: 0;
+  background: var(--mauve); color: var(--base); font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+}
+.play.pause { background: var(--lavender); }
+.play.wait { background: var(--crust); color: var(--overlay1); }
+
+.btn {
+  border: 0; border-radius: 12px; font-weight: 600; display: flex; gap: 8px;
+  justify-content: center; align-items: center;
+}
+.btn.ghost { background: var(--base); border: 1px solid var(--surface0); color: var(--text); padding: 8px 12px; }
+.btn.ghost:disabled { color: var(--overlay0); }
+.pager { display: flex; align-items: center; justify-content: space-between; padding: 4px 20px 18px; gap: 8px; }
+.dots { display: flex; gap: 6px; }
+.dots button {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--surface0);
+  background: var(--base); font-size: 12.5px; font-weight: 650;
+}
+.dots button.on { background: var(--mauve); color: var(--base); border-color: var(--mauve); }
+
+/* 手機寬度：封面縮成標題旁的小圖，讓第一句盡量出現在第一屏（ui-mockup 狀態 5）。 */
+@media (max-width: 760px) {
+  .top { padding: 12px 14px; }
+  .top small { display: none; }
+  .layout { padding: 12px; }
+  .banner { margin: 12px 12px 0; }
+  .book-head { grid-template-columns: 104px 1fr; gap: 14px; padding: 14px; }
+  .cover .art { font-size: 36px; }
+  .cover .tag { font-size: 9px; padding: 0 5px; bottom: 4px; right: 4px; }
+  .titles h1 { font-size: 22px; }
+  .titles .zh { font-size: 15px; margin-bottom: 6px; }
+  .page { padding: 12px; }
+  .sent { padding: 12px; gap: 12px; }
+  .sent .en { font-size: 19px; }
+  .play { width: 44px; height: 44px; font-size: 15px; }
+  .pager { padding: 4px 12px 14px; }
+  .pager .btn.ghost { padding: 10px 12px; }
+  .pager .lbl { display: none; }
+}
