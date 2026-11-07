@@ -3,10 +3,13 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import StoryForm from './components/StoryForm.vue'
 import StoryReader from './components/StoryReader.vue'
 import { createCoverApi } from './api/coverApi'
+import { createSpeechApi } from './api/speechApi'
 import { createStoryApi } from './api/storyApi'
 import { installLeaveGuard, shouldConfirmLeave } from './generation/leaveGuard'
 import { useCoverGeneration } from './generation/useCoverGeneration'
 import { useStoryGeneration } from './generation/useStoryGeneration'
+import { useVoiceGeneration } from './generation/useVoiceGeneration'
+import { createBrowserAudioPlayer } from './speech/browserAudioPlayer'
 import { createBrowserSpeechEngine } from './speech/browserSpeechEngine'
 import { useNarration } from './speech/useNarration'
 import { parseSpeechRate } from './speech/voice'
@@ -15,6 +18,7 @@ import { parseSpeechRate } from './speech/voice'
 const narration = useNarration({
   engine: createBrowserSpeechEngine(),
   rate: parseSpeechRate(import.meta.env.VITE_SPEECH_RATE),
+  audio: createBrowserAudioPlayer(),
 })
 
 // 瀏覽器的全域 fetch 不能脫離原本的 this 呼叫，因此包一層。
@@ -26,7 +30,15 @@ const apiDeps = {
 // 封面狀態同樣在 App 層跨故事共用一份：useStoryGeneration 在文字通過驗證後請求封面，
 // 封面結束後與文字一起發佈成新書，換書時整個換成新書的封面結果（PLAN 3.3）。
 const cover = useCoverGeneration(createCoverApi(apiDeps))
-const generation = useStoryGeneration(createStoryApi(apiDeps), narration, cover)
+// OpenAI 語音的書本狀態同樣在 App 層跨故事共用一份（PLAN 3.8）。建立新故事期間（等文字或等封面）舊書不送新的語音請求；
+// isLocked 只在之後讀取，此時 generation 已建立。
+const voice = useVoiceGeneration(
+  createSpeechApi(apiDeps),
+  narration,
+  { create: (blob) => URL.createObjectURL(blob), revoke: (url) => URL.revokeObjectURL(url) },
+  () => generation.coverRetryLocked.value,
+)
+const generation = useStoryGeneration(createStoryApi(apiDeps), narration, cover, voice)
 const { story, storyVersion, formOpen } = generation
 
 // 故事與輸入只在當頁記憶體，重新整理或關閉分頁前，有東西會損失時請瀏覽器確認（PLAN 3.2）。
@@ -36,6 +48,7 @@ onMounted(() => {
     shouldConfirmLeave({
       status: generation.status.value,
       coverBusy: cover.busy.value,
+      voiceBusy: voice.busy.value,
       hasStory: story.value !== null,
       character: generation.form.character,
       situation: generation.form.situation,
@@ -64,8 +77,14 @@ const emptyState = computed(() => {
         <div class="cur">
           目前故事：<b>{{ story.title.zh }}</b>
           <div v-if="generation.coverBusy.value" class="hint">封面產生完才能建立新故事</div>
+          <div v-else-if="generation.voiceBusy.value" class="hint">語音產生完才能建立新故事</div>
         </div>
-        <button type="button" class="btn primary small" :disabled="generation.coverBusy.value" @click="generation.openForm()">
+        <button
+          type="button"
+          class="btn primary small"
+          :disabled="generation.coverBusy.value || generation.voiceBusy.value"
+          @click="generation.openForm()"
+        >
           ＋ 建立新故事
         </button>
       </section>
@@ -77,6 +96,7 @@ const emptyState = computed(() => {
         :story="story"
         :narration="narration"
         :cover="cover"
+        :voice="voice"
         :cover-retry-locked="generation.coverRetryLocked.value"
         @retry-cover="generation.retryCover()"
       />

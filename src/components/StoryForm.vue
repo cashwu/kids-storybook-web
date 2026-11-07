@@ -7,7 +7,7 @@ import type { StoryGeneration } from '../generation/useStoryGeneration'
 
 // 只負責呈現與轉發操作；送出條件、防重複提交與失敗處理都在 useStoryGeneration（tdd.md 1）。
 const props = defineProps<{ generation: StoryGeneration }>()
-const { form, fieldErrors, status, error, story, coverBusy } = props.generation
+const { form, fieldErrors, status, error, story, coverBusy, voiceBusy, voiceMode } = props.generation
 
 // 等封面（drawing）時表單同樣鎖定：新故事要等封面結束才和文字一起發佈。
 const busy = computed(() => status.value === 'generating' || status.value === 'drawing')
@@ -20,6 +20,7 @@ const buttonLabel = computed(() => {
   if (busy.value) return '故事生成中…'
   // 重試封面時不開新故事（PLAN 3.3）；通常表單此時已收合，這裡防止展開時按了卻沒有反應。
   if (coverBusy.value) return '封面產生完才能建立新故事'
+  if (voiceBusy.value) return '語音產生完才能建立新故事'
   if (status.value === 'failed') return '↻ 再試一次'
   return hasStory.value ? '✨ 產生新故事' : '✨ 產生故事'
 })
@@ -119,6 +120,39 @@ function errorOf(field: StoryInputField) {
         <div v-if="errorOf('pageCount')" id="page-count-err" class="err">{{ errorOf('pageCount') }}</div>
       </div>
 
+      <div class="field">
+        <span class="label" id="voice-mode-label">朗讀方式</span>
+        <!-- 選擇只在當頁記憶體，新故事沿用上次的值；閱讀中不能切換，只有失敗時的出口（PLAN 3.8）。 -->
+        <div class="seg" role="radiogroup" aria-labelledby="voice-mode-label">
+          <button
+            type="button"
+            role="radio"
+            :class="{ on: voiceMode === 'device' }"
+            :aria-checked="voiceMode === 'device'"
+            :disabled="busy"
+            @click="voiceMode = 'device'"
+          >
+            裝置語音
+          </button>
+          <button
+            type="button"
+            role="radio"
+            :class="{ on: voiceMode === 'openai' }"
+            :aria-checked="voiceMode === 'openai'"
+            :disabled="busy"
+            @click="voiceMode = 'openai'"
+          >
+            OpenAI 語音
+          </button>
+        </div>
+        <!-- 固定費用說明，不顯示金額（PLAN 3.8「費用說明」）。 -->
+        <p v-if="voiceMode === 'openai'" class="hint fee" role="note">
+          會用你的 key 呼叫 OpenAI 語音，每頁第一次以英文或中文朗讀時為該頁每句計費一次，英文與中文分開計費，重播不再計費，實際費用以
+          OpenAI 帳單為準。
+        </p>
+        <p v-else class="hint">使用這台裝置內建的語音合成，不會額外計費。</p>
+      </div>
+
       <div class="keybox">
         <div class="field" :class="{ bad: errorOf('apiKey') }">
           <label for="api-key">你的 OpenAI API key</label>
@@ -181,11 +215,11 @@ function errorOf(field: StoryInputField) {
         <ul class="privacy">
           <li>key 只放在這個分頁的記憶體，<b>重新整理就會消失</b>，故事也會一起消失。</li>
           <li>key 與故事需求會經過本 app 的後端送往 OpenAI；本 app 不保存、不記錄 key。</li>
-          <li>產生故事與封面的 API 用量由這把 key 負擔。</li>
+          <li>產生故事、封面{{ voiceMode === 'openai' ? '與 OpenAI 語音' : '' }}的 API 用量由這把 key 負擔。</li>
         </ul>
       </div>
 
-      <button type="button" class="btn primary" :disabled="busy || coverBusy" @click="generation.submit()">
+      <button type="button" class="btn primary" :disabled="busy || coverBusy || voiceBusy" @click="generation.submit()">
         {{ buttonLabel }}
       </button>
     </div>

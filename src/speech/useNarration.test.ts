@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
+import { createFakeAudioPlayer } from './fakeAudioPlayer'
 import { createFakeSpeechEngine, enUS, zhTW } from './fakeSpeechEngine'
 import { useNarration, type NarrationOptions } from './useNarration'
 
@@ -358,5 +359,180 @@ describe('useNarration 朗讀語言', () => {
     expect(narration.chineseAvailable.value).toBe(false)
     expect(narration.language.value).toBe('en')
     expect(narration.canPlay.value).toBe(false)
+  })
+})
+
+// OpenAI 語音的書（PLAN 3.8）：音檔由 <audio> 播放，與 speechSynthesis 共用「同時只播一句」與高亮。
+// 假 player 與假 engine 只能證明狀態與呼叫；iOS Safari 能否在點擊後播放 <audio> 由實機驗收確認。
+describe('useNarration OpenAI 語音', () => {
+  function setupAi(voices = [enUS, zhTW]) {
+    const engine = createFakeSpeechEngine(voices)
+    const audio = createFakeAudioPlayer()
+    const { narration, scope } = setup({ engine, audio })
+    narration.setAiVoice(true)
+    return { engine, audio, narration, scope }
+  }
+
+  it('playClip 播放該句音檔並高亮，再按同一句停止並清除高亮', () => {
+    const { audio, narration } = setupAi()
+
+    narration.playClip('p0-s0', 'blob:a')
+    expect(audio.played.map((c) => c.src)).toEqual(['blob:a'])
+    expect(narration.activeId.value).toBe('p0-s0')
+
+    narration.playClip('p0-s0', 'blob:a')
+    expect(narration.activeId.value).toBeNull()
+    expect(audio.stopCount).toBeGreaterThan(0)
+    expect(audio.played).toHaveLength(1)
+  })
+
+  // 同時只播一句（PLAN 3.4、3.8「播放」）：換句前先停掉上一句的 <audio>，也取消可能還在念的 speechSynthesis。
+  it('播第一句音檔時改播第二句，先停止第一句再播放，只有第二句高亮', () => {
+    const { audio, engine, narration } = setupAi()
+
+    narration.playClip('p0-s0', 'blob:a')
+    const cancelsBefore = engine.cancelCount
+    narration.playClip('p0-s1', 'blob:b')
+
+    expect(audio.played[1]?.stopCountAtPlay).toBeGreaterThan(audio.played[0]!.stopCountAtPlay)
+    expect(engine.cancelCount).toBeGreaterThan(cancelsBefore)
+    expect(narration.activeId.value).toBe('p0-s1')
+  })
+
+  it('被停止的前一句晚到的 end 或 error，不會清除目前句子的高亮；目前句子播完才清除', () => {
+    const { audio, narration } = setupAi()
+
+    narration.playClip('p0-s0', 'blob:a')
+    narration.playClip('p0-s1', 'blob:b')
+    audio.played[0]!.events.onEnd()
+    audio.played[0]!.events.onError()
+    expect(narration.activeId.value).toBe('p0-s1')
+
+    audio.played[1]!.events.onEnd()
+    expect(narration.activeId.value).toBeNull()
+  })
+
+  it('音檔播放失敗時清除高亮，不自動重播', () => {
+    const { audio, narration } = setupAi()
+
+    narration.playClip('p0-s0', 'blob:a')
+    audio.played[0]!.events.onError()
+
+    expect(narration.activeId.value).toBeNull()
+    expect(audio.played).toHaveLength(1)
+  })
+
+  // 切頁與替換故事都呼叫 stop()（PLAN 3.4、3.8「隔離」）：舊句的音檔必須停下，不能在新頁或新故事繼續播。
+  it('stop() 停止目前音檔並清除高亮', () => {
+    const { audio, narration } = setupAi()
+    narration.playClip('p0-s0', 'blob:a')
+    const stopsBefore = audio.stopCount
+
+    narration.stop()
+
+    expect(audio.stopCount).toBeGreaterThan(stopsBefore)
+    expect(narration.activeId.value).toBeNull()
+  })
+
+  it('speechSynthesis 朗讀中改播音檔時，先取消 speechSynthesis', () => {
+    const engine = createFakeSpeechEngine([enUS, zhTW])
+    const audio = createFakeAudioPlayer()
+    const { narration } = setup({ engine, audio })
+    narration.toggle('p0-s0', s0)
+    const cancelsBefore = engine.cancelCount
+
+    narration.setAiVoice(true)
+    narration.playClip('p0-s1', 'blob:b')
+
+    expect(engine.cancelCount).toBeGreaterThan(cancelsBefore)
+    expect(narration.activeId.value).toBe('p0-s1')
+  })
+
+  it('瀏覽器不支援 speechSynthesis 時仍可播放音檔', () => {
+    const audio = createFakeAudioPlayer()
+    const { narration } = setup({ engine: null, audio })
+    narration.setAiVoice(true)
+
+    narration.playClip('p0-s0', 'blob:a')
+
+    expect(audio.played).toHaveLength(1)
+    expect(narration.activeId.value).toBe('p0-s0')
+  })
+
+  // OpenAI 中文不靠裝置聲音（PLAN 3.8「中文」，使用者 2026-11-07 確認）：沒有 zh-TW 也能切到中文。
+  it('沒有 zh-TW 聲音時，OpenAI 語音的書仍可切到中文', () => {
+    const { narration } = setupAi([enUS])
+
+    expect(narration.canSelectChinese.value).toBe(true)
+    narration.setLanguage('zh')
+
+    expect(narration.language.value).toBe('zh')
+  })
+
+  it('OpenAI 語音的書在中文時，聲音清單變動且沒有 zh-TW，不會被改回英文，播放中的音檔也不中斷', () => {
+    const { engine, narration } = setupAi([enUS])
+    narration.setLanguage('zh')
+    narration.playClip('p0-s0', 'blob:zh')
+
+    engine.voices = [enUS]
+    engine.emitVoicesChanged()
+
+    expect(narration.language.value).toBe('zh')
+    expect(narration.activeId.value).toBe('p0-s0')
+  })
+
+  it('OpenAI 語音的書播放音檔時英文裝置聲音消失，音檔不中斷', () => {
+    const { engine, narration } = setupAi([enUS, zhTW])
+    narration.playClip('p0-s0', 'blob:a')
+
+    engine.voices = [zhTW]
+    engine.emitVoicesChanged()
+
+    expect(narration.activeId.value).toBe('p0-s0')
+  })
+
+  // 出口（PLAN 3.8）：改回裝置語音後回到 3.5 第 3 項，沒有 zh-TW 聲音就不能用中文（V10）。
+  it('改回裝置語音時停止播放；沒有 zh-TW 聲音且在中文時回到英文，中文不能再選', () => {
+    const { audio, narration } = setupAi([enUS])
+    narration.setLanguage('zh')
+    narration.playClip('p0-s0', 'blob:zh')
+    const stopsBefore = audio.stopCount
+
+    narration.setAiVoice(false)
+
+    expect(audio.stopCount).toBeGreaterThan(stopsBefore)
+    expect(narration.activeId.value).toBeNull()
+    expect(narration.language.value).toBe('en')
+    expect(narration.canSelectChinese.value).toBe(false)
+    narration.setLanguage('zh')
+    expect(narration.language.value).toBe('en')
+  })
+
+  it('改回裝置語音時有 zh-TW 聲音就保留中文', () => {
+    const { narration } = setupAi([enUS, zhTW])
+    narration.setLanguage('zh')
+
+    narration.setAiVoice(false)
+
+    expect(narration.language.value).toBe('zh')
+  })
+
+  it('設定成與目前相同的值不會打斷播放', () => {
+    const { narration } = setupAi()
+    narration.playClip('p0-s0', 'blob:a')
+
+    narration.setAiVoice(true)
+
+    expect(narration.activeId.value).toBe('p0-s0')
+  })
+
+  it('所屬的 effect scope 結束時停止音檔', () => {
+    const { audio, narration, scope } = setupAi()
+    narration.playClip('p0-s0', 'blob:a')
+    const stopsBefore = audio.stopCount
+
+    scope.stop()
+
+    expect(audio.stopCount).toBeGreaterThan(stopsBefore)
   })
 })

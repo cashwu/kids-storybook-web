@@ -8,6 +8,7 @@ import { DEMO_CHARACTER, DEMO_SITUATION } from './useStoryGeneration'
 const idle: LeaveGuardState = {
   status: 'idle',
   coverBusy: false,
+  voiceBusy: false,
   hasStory: false,
   character: DEMO_CHARACTER,
   situation: DEMO_SITUATION,
@@ -83,5 +84,12 @@ describe('installLeaveGuard', () => {
     const event = beforeUnload()
     target.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
+  })
+})
+
+describe('shouldConfirmLeave OpenAI 語音', () => {
+  // 語音請求已經開始計費，離開就丟掉結果（PLAN 3.2、3.8）。
+  it('語音請求進行中時確認', () => {
+    expect(shouldConfirmLeave({ ...idle, voiceBusy: true })).toBe(true)
   })
 })

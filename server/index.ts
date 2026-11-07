@@ -4,13 +4,15 @@
 // Key 的安全邊界（PLAN 3.2）：
 // - key 只從 Authorization header 讀取，只轉送到 OpenAI 的 Authorization header。
 // - 不以 console 記錄請求 header、body 或 OpenAI 的回應內容；Workers Logs 開啟，任何 console 輸出都會被保存。
-// - 錯誤回應只含本 app 的錯誤類別（StoryApiErrorCode／CoverApiErrorCode），不含 OpenAI 的錯誤訊息原文。
+// - 錯誤回應只含本 app 的錯誤類別（StoryApiErrorCode／CoverApiErrorCode／SpeechApiErrorCode），不含 OpenAI 的錯誤訊息原文。
 // - Worker 不保存任何請求資料，每個請求彼此獨立，不同使用者拿不到彼此的故事（A9）。
 import { STORY_API_PATH, WORKER_TEXT_TIMEOUT_MS, type StoryApiErrorCode } from '../shared/storyApi'
 import { COVER_API_PATH, WORKER_COVER_TIMEOUT_MS, type CoverApiErrorCode } from '../shared/coverApi'
 import { isLoopbackHost } from '../shared/loopback'
+import { SPEECH_API_PATH, WORKER_SPEECH_TIMEOUT_MS, type SpeechApiErrorCode } from '../shared/speechApi'
 import { checkApiKey, validateStoryInput, type StoryInputField } from '../shared/storyInput'
 import { buildCoverRequest, mapCoverError, OPENAI_IMAGES_URL, parseCoverStory } from './cover'
+import { buildSpeechRequest, mapSpeechError, OPENAI_SPEECH_URL, parseSpeechBody } from './speech'
 import { buildStoryTextRequest, mapOpenAIError, OPENAI_RESPONSES_URL, parseStoryTextResponse } from './storyText'
 
 export interface WorkerDeps {
@@ -20,7 +22,7 @@ export interface WorkerDeps {
   timeoutSignal: (ms: number) => AbortSignal
 }
 
-type ApiErrorCode = StoryApiErrorCode | CoverApiErrorCode
+type ApiErrorCode = StoryApiErrorCode | CoverApiErrorCode | SpeechApiErrorCode
 
 const ERROR_STATUS: Record<ApiErrorCode, number> = {
   invalid_input: 400,
@@ -38,6 +40,7 @@ const ERROR_STATUS: Record<ApiErrorCode, number> = {
   invalid_story: 502,
   cover_refused: 502,
   invalid_cover: 502,
+  invalid_audio: 502,
 }
 
 /** API 回應含使用者的故事需求與生成結果，一律 no-store，不讓瀏覽器或中間層快取。 */
@@ -46,7 +49,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 function errorResponse(error: ApiErrorCode, fields?: StoryInputField[]): Response {
-  // fields 只有故事文字 API 的 invalid_input 會帶（StoryErrorBody）；封面 API 的錯誤只有 error（CoverErrorBody）。
+  // fields 只有故事文字 API 的 invalid_input 會帶（StoryErrorBody）；封面與語音 API 的錯誤只有 error。
   const body = fields ? { error, fields } : { error }
   return json(body, ERROR_STATUS[error])
 }
@@ -171,6 +174,41 @@ async function handleCover(request: Request, deps: WorkerDeps): Promise<Response
   }
 }
 
+/**
+ * 單句 OpenAI 語音（PLAN 3.8）。與封面相同只呼叫 OpenAI 一次、不自動重試，失敗由使用者手動重試該句。
+ *
+ * 成功回應直接把 OpenAI 的 mp3 串流給瀏覽器，不在 Worker 內讀完：省下 Worker 的 CPU 與記憶體，
+ * 也不轉送 OpenAI 的回應 header。逾時 signal 在回應 header 送出後仍作用在 body 串流上，逾時就中斷串流。
+ */
+async function handleSpeech(request: Request, deps: WorkerDeps): Promise<Response> {
+  if (request.method !== 'POST') return errorResponse('method_not_allowed')
+
+  const apiKey = readKey(request)
+  const input = parseSpeechBody(await readJson(request))
+  if (!input || checkApiKey(apiKey)) return errorResponse('invalid_input')
+
+  const signal = deps.timeoutSignal(WORKER_SPEECH_TIMEOUT_MS)
+  try {
+    const res = await deps.fetch(OPENAI_SPEECH_URL, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify(buildSpeechRequest(input)),
+      signal,
+    })
+    if (!res.ok) {
+      const errorBody: unknown = await res.json().catch(() => null)
+      return errorResponse(mapSpeechError(res.status, errorBody))
+    }
+    if (!res.body) return errorResponse('upstream_error')
+    return new Response(res.body, {
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' },
+    })
+  } catch (error) {
+    return errorResponse(isTimeout(error, signal) ? 'timeout' : 'network_error')
+  }
+}
+
 export function createWorker(deps: WorkerDeps) {
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
@@ -178,6 +216,7 @@ export function createWorker(deps: WorkerDeps) {
       if (!isSecure(url)) return errorResponse('insecure_request')
       if (url.pathname === STORY_API_PATH) return handleStory(request, env, deps)
       if (url.pathname === COVER_API_PATH) return handleCover(request, deps)
+      if (url.pathname === SPEECH_API_PATH) return handleSpeech(request, deps)
       // 其他 /api 路徑一律回 404 JSON，避免前端把 index.html 當成 API 回應解析。
       return errorResponse('not_found')
     },

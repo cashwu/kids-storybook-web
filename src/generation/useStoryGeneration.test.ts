@@ -3,11 +3,13 @@ import { effectScope } from 'vue'
 import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
 import type { CoverApi, GenerateCoverResult } from '../api/coverApi'
+import type { GenerateSpeechResult, SpeechApi } from '../api/speechApi'
 import type { GenerateStoryResult, StoryApi } from '../api/storyApi'
 import { createFakeSpeechEngine, enUS, zhTW } from '../speech/fakeSpeechEngine'
 import { useNarration } from '../speech/useNarration'
 import { useCoverGeneration } from './useCoverGeneration'
 import { useStoryGeneration } from './useStoryGeneration'
+import { useVoiceGeneration } from './useVoiceGeneration'
 
 const KEY = 'sk-test-fake0000'
 
@@ -64,13 +66,40 @@ function fakeCover() {
   return { cover, respondCover, coverCalls: () => vi.mocked(api.generateCover).mock.calls }
 }
 
+/**
+ * 真的 useVoiceGeneration 搭配假的語音 client，讓測試能觀察文字流程何時送出第 1 頁語音請求。
+ * locked 由 setup 接到 generation 建立新故事期間的狀態，與 App 的接法相同。
+ */
+function fakeVoice(narration: ReturnType<typeof fakeNarration>['narration'], isLocked: () => boolean) {
+  const pending: Array<{ text: string; language: string; resolve: (result: GenerateSpeechResult) => void }> = []
+  const api: SpeechApi = {
+    generateSpeech: vi.fn(
+      (text, language) =>
+        new Promise<GenerateSpeechResult>((resolve) => {
+          pending.push({ text, language, resolve })
+        }),
+    ),
+  }
+  let n = 0
+  const voice = useVoiceGeneration(api, narration, { create: () => `blob:${(n += 1)}`, revoke: () => {} }, isLocked)
+  const respondSpeech = async (result: GenerateSpeechResult) => {
+    await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0))
+    pending.shift()!.resolve(result)
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+  return { voice, respondSpeech, speechCalls: () => vi.mocked(api.generateSpeech).mock.calls, speechPending: pending }
+}
+
 function setup() {
   const fake = fakeApi()
   const speech = fakeNarration()
   const covers = fakeCover()
-  const gen = useStoryGeneration(fake.api, speech.narration, covers.cover)
+  // gen 在下一行才建立；isLocked 只在之後讀取，與 App 的接法相同。
+  const voices = fakeVoice(speech.narration, () => gen.coverRetryLocked.value)
+  const gen = useStoryGeneration(fake.api, speech.narration, covers.cover, voices.voice)
   gen.form.apiKey = KEY
-  return { ...fake, ...speech, ...covers, gen }
+  return { ...fake, ...speech, ...covers, ...voices, gen }
 }
 
 const COVER_OK: GenerateCoverResult = { ok: true, src: 'data:image/gif;base64,R0lGOD' }
@@ -86,7 +115,8 @@ async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryRe
 describe('useStoryGeneration 初始狀態', () => {
   // 角色與情境預填 Demo 案例方便測試；key 一律不預填（PLAN 3.1）。
   it('角色與情境預填 Demo 案例、頁數預設 4、key 空白，沒有故事且表單展開', () => {
-    const gen = useStoryGeneration(fakeApi().api, fakeNarration().narration, fakeCover().cover)
+    const speech = fakeNarration()
+    const gen = useStoryGeneration(fakeApi().api, speech.narration, fakeCover().cover, fakeVoice(speech.narration, () => false).voice)
 
     expect(gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 4, apiKey: '' })
     expect(gen.story.value).toBeNull()
@@ -442,5 +472,125 @@ describe('useStoryGeneration 與封面', () => {
 
     await ctx.respondCover(COVER_OK)
     await done
+  })
+})
+
+// 選 OpenAI 語音時的生成流程（PLAN 3.8「生成時機」「隔離」）。本檔的 makeStory 每頁 1 句，
+// 因此第 1 頁只有 1 個語音請求；每頁 2 句的逐頁請求見 useVoiceGeneration.test.ts。
+describe('useStoryGeneration OpenAI 語音', () => {
+  it('朗讀方式預設為裝置語音；裝置語音的故事不送語音請求（V1）', async () => {
+    const ctx = setup()
+    expect(ctx.gen.voiceMode.value).toBe('device')
+
+    await submitWith(ctx, { ok: true, story: makeStory('A') })
+
+    expect(ctx.speechCalls()).toHaveLength(0)
+    expect(ctx.voice.usesAi.value).toBe(false)
+  })
+
+  // 第 1 頁語音與封面同時送出，兩者都結束才發佈（V2）：只等封面就發佈的話，畫面會先出現第 1 頁還在生成中的新書。
+  it('文字通過後第 1 頁語音與封面同時請求，兩者都結束才發佈新故事，用同一把 key', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await vi.waitFor(() => expect(ctx.speechCalls()).toHaveLength(1))
+    expect(ctx.coverCalls()).toHaveLength(1)
+    expect(ctx.speechCalls()[0]).toEqual(['A page 1.', 'en', KEY])
+
+    await ctx.respondCover(COVER_OK)
+    expect(ctx.gen.story.value).toBeNull()
+    expect(ctx.gen.status.value).toBe('drawing')
+
+    await ctx.respondSpeech({ ok: true, audio: new Blob(['mp3']) })
+    await done
+
+    expect(ctx.gen.story.value?.title.en).toBe('A')
+    expect(ctx.voice.usesAi.value).toBe(true)
+    expect(ctx.voice.clip(0, 0, 'en')?.status).toBe('ready')
+  })
+
+  it('第 1 頁語音失敗也照樣發佈，失敗的句子可在閱讀區處理', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
+    await ctx.respondSpeech({ ok: false, error: 'insufficient_quota' })
+    await done
+
+    expect(ctx.gen.story.value?.title.en).toBe('A')
+    expect(ctx.voice.clip(0, 0, 'en')?.status).toBe('failed')
+    expect(ctx.voice.showExit.value).toBe(true)
+  })
+
+  // 文字失敗或驗證不通過時不送任何素材請求（V6）。
+  it('選 OpenAI 語音但文字失敗時，沒有語音請求也沒有封面請求', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+
+    await submitWith(ctx, fail('invalid_story'))
+
+    expect(ctx.speechCalls()).toHaveLength(0)
+    expect(ctx.coverCalls()).toHaveLength(0)
+  })
+
+  // 仍有語音請求進行時不能送出新故事（V7）：否則兩本書的請求同時進行，也會讓使用者重複付費。
+  it('目前這本書還有語音請求進行中時，送出新故事被忽略，請求結束後才可送出', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
+    await ctx.respondSpeech({ ok: true, audio: new Blob(['mp3']) })
+    await done
+    ctx.voice.ensurePage(ctx.voice.bookId.value, 2, 'en')
+    expect(ctx.gen.voiceBusy.value).toBe(true)
+
+    await ctx.gen.submit()
+    expect(ctx.calls()).toHaveLength(1)
+
+    await ctx.respondSpeech({ ok: true, audio: new Blob(['mp3']) })
+    expect(ctx.gen.voiceBusy.value).toBe(false)
+    void ctx.gen.submit()
+    expect(ctx.calls()).toHaveLength(2)
+  })
+
+  // 建立新故事期間（等文字、等封面或等第 1 頁語音）舊書不送新的語音請求（V7）。
+  it('建立新故事期間，舊書翻到未請求的頁不送語音請求；新故事文字失敗後才可送出', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+    let done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
+    await ctx.respondSpeech({ ok: true, audio: new Blob(['mp3']) })
+    await done
+    const book = ctx.voice.bookId.value
+
+    done = ctx.gen.submit()
+    ctx.voice.ensurePage(book, 3, 'en')
+    expect(ctx.speechCalls()).toHaveLength(1)
+
+    ctx.respond(fail('timeout'))
+    await done
+    ctx.voice.ensurePage(book, 3, 'en')
+    expect(ctx.speechCalls()).toHaveLength(2)
+    expect(ctx.speechCalls()[1]?.[0]).toBe('A page 4.')
+  })
+
+  it('朗讀方式沿用到下一本：上一本選 OpenAI 語音，下一本預設仍是 OpenAI 語音（V9）', async () => {
+    const ctx = setup()
+    ctx.gen.voiceMode.value = 'openai'
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
+    await ctx.respondSpeech({ ok: true, audio: new Blob(['mp3']) })
+    await done
+
+    ctx.gen.openForm()
+
+    expect(ctx.gen.voiceMode.value).toBe('openai')
   })
 })

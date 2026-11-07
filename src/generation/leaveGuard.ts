@@ -4,6 +4,8 @@ export interface LeaveGuardState {
   status: GenerationStatus
   /** 目前這本書的封面重試中。 */
   coverBusy: boolean
+  /** 目前這本書仍有 OpenAI 語音請求進行中。 */
+  voiceBusy: boolean
   hasStory: boolean
   character: string
   situation: string
@@ -17,7 +19,7 @@ export interface LeaveGuardState {
  * key 不列入判斷，它本來就只在當頁記憶體、設計成不留存。
  */
 export function shouldConfirmLeave(state: LeaveGuardState): boolean {
-  if (state.status === 'generating' || state.status === 'drawing' || state.coverBusy) return true
+  if (state.status === 'generating' || state.status === 'drawing' || state.coverBusy || state.voiceBusy) return true
   if (state.hasStory) return true
   return isEdited(state.character, DEMO_CHARACTER) || isEdited(state.situation, DEMO_SITUATION)
 }

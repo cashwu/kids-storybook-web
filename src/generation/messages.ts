@@ -1,6 +1,7 @@
 // 生成流程的畫面文案。錯誤類別以 Record 對應，新增類別時型別檢查會要求補上文案。
 // 文案只描述錯誤類別，不帶入任何回應內容，因此不會顯示 key 或 OpenAI 的錯誤原文。
 import type { CoverApiErrorCode } from '../../shared/coverApi'
+import type { SpeechApiErrorCode } from '../../shared/speechApi'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
 import {
   CHARACTER_MAX,
@@ -69,4 +70,20 @@ export const COVER_ERROR_MESSAGES: Record<CoverApiErrorCode, string> = {
   upstream_error: 'OpenAI 暫時出了問題。',
   cover_refused: '這次沒有產生封面，安全系統拒絕了這張圖。',
   invalid_cover: '這次回來的封面不是可以顯示的圖片，沒有採用。',
+}
+
+// 單句 OpenAI 語音失敗的文案只出現在該句下方，同頁其他句不受影響（PLAN 3.8「失敗」）。
+export const SPEECH_ERROR_MESSAGES: Record<SpeechApiErrorCode, string> = {
+  invalid_input: '這句的語音請求沒有通過檢查。',
+  insecure_request: '連線不是 https，沒有送出。',
+  not_found: '語音服務暫時無法使用。',
+  method_not_allowed: '語音服務暫時無法使用。',
+  invalid_key: 'API key 無效。',
+  permission_denied: '這把 API key 沒有使用 OpenAI 語音的權限。',
+  rate_limited: 'OpenAI 暫時限制了請求次數，請稍等一下。',
+  insufficient_quota: '這把 API key 的額度不足。',
+  timeout: '等待太久沒有回應；逾時不代表 OpenAI 沒有處理，這次可能已經計費。',
+  network_error: '連線失敗，請確認網路連線。',
+  upstream_error: 'OpenAI 暫時出了問題。',
+  invalid_audio: '這次回來的不是可以播放的音檔，沒有採用。',
 }
