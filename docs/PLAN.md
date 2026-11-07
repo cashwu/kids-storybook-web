@@ -145,9 +145,9 @@ V9 沿用與重設：上一本選 OpenAI 語音，展開「建立新故事」時
 - 官方文件（2026-11-07 查閱，未實測）：`speechSynthesis` 無法輸出音檔，聲音清單依作業系統與瀏覽器而定（例如 Edge 瀏覽器提供 Microsoft 線上聲音，Safari 沒有）。OpenAI `/v1/audio/speech` 的 `tts-1`、`tts-1-hd`、`gpt-4o-mini-tts` 2027-01-06 停用，官方替代為只支援 Realtime API 的模型；Images API 的 GIF 支援於 2026-11-04 公告。Cloudflare Free 方案每請求 CPU 10 ms，等待 fetch 不計入，HTTP 請求沒有 wall-clock 上限；Workers Logs 預設開啟。
 
 ### 待驗證及推翻時處理
-- 可選頁數（3.1）：使用者 2026-11-07 本機實測，每頁 1–2 句時 10 頁在 60 秒逾時內完成，改為每頁固定 2 句後 7 頁正常；10 頁 × 2 句的等待時間尚未實測，超過逾時時回報，再決定調整上限或逾時。
+- 可選頁數（3.1）：使用者 2026-11-07 本機實測，每頁 1–2 句時 10 頁在 60 秒逾時內完成，改為每頁固定 2 句後 7 頁正常；T5 在部署環境以恐龍 Demo 實測 10 頁 × 2 句，文字 7.3 秒（單次，見 task.md T5 驗收紀錄），在 60 秒逾時內。
 - 朗讀：使用者已在試驗頁用 Safari 的 Samantha (en-US) 試聽 `speechSynthesis` 並接受（Safari 的聲音清單沒有 Jenny）；其他瀏覽器與手機尚未試聽。各裝置與瀏覽器的聲音、最低語速與 iOS 手勢限制，在 T3 與 T5 以實機確認。
-- Workers Logs 會保存 URL 與自訂 header 值，因此核心版維持 `observability` 開啟，但 key 只放在 `Authorization`（3.2），Worker 不以 `console` 記錄請求 header、body 或 OpenAI 錯誤原文。T5 部署後以假 key 再確認一次。
+- Workers Logs 會保存 URL 與自訂 header 值，因此核心版維持 `observability` 開啟，但 key 只放在 `Authorization`（3.2），Worker 不以 `console` 記錄請求 header、body 或 OpenAI 錯誤原文。T5 已部署並以假 key（含 `T5MARKER`，只放在 `Authorization`）呼叫 `/api/story`，Worker 回應不含 key；dashboard 搜尋結果尚待使用者確認。
 - 封面在 Free 方案的 CPU 用量：試驗以串流轉送未解碼，未量測實際 CPU 時間；T4／T5 部署後確認。
 - 朗讀可懂度與故事適齡：用 Demo 情境人工聽讀，不能只憑資料格式認定品質。
 - 輸入上限與逾時已於 3.7 確認；上述秒數為單次實測，不承諾生成秒數或固定成本。
@@ -209,6 +209,13 @@ T0 已完成；T1 可開工，T2–T5 依序受前一項阻擋。
 - 內部 review：2 輪 sub-agent。第 1 輪 1 項 blocking 成立並修正：建立新故事期間閱讀區仍可重試舊故事的封面，會多送付費請求（A7）；改為等文字與等封面時鎖住重試並補回歸測試。第 2 輪無 blocking。
 - 外部 review：1 輪；provider codex；模型 gpt-6.1-sol；reasoningEffort high。Verdict：APPROVE，只有 1 項 nit（移除封面重試的序號防護），未採納：它防的是新舊故事的封面隔離，成本只有幾行。用量：未提供，不估算。
 - 其後同步文件：3.3 補入第 1 輪 blocking 修正帶出的規則（新故事顯示前不重試舊故事封面）；3.8 生成時機、V2、V3 依使用者 2026-11-07 確認改為第 1 頁語音與封面同時送出、都結束才一起出現；3.8 隔離、V6、V7 依使用者 2026-11-07 確認補入建立新故事期間舊故事不送新的語音請求；AGENTS.md「不可違反的設計約束」的「新舊故事隔離」依使用者明確要求補上素材請求結束才替換（收緊，未放寬）；3.6、task.md T4、AGENTS.md 專案概觀與 README 依 non-blocking 複查同步用語。文件修改經 3 輪 sub-agent review，第 2 輪 1 項 blocking（本紀錄漏記）已修，第 3 輪無 blocking；未另跑外部 review。
+
+### T5 部署及核心交付驗收 review
+- 流程：task-loop；範圍只有 task.md T5 節的驗收紀錄、Demo 流程與第 5 節兩處更新，沒有產品程式碼變更。
+- 內部 review：3 輪 sub-agent。第 1 輪 2 項 blocking（A1 適齡只經 agent 檢視卻寫在結果、A5 封面失敗狀態下「可朗讀」未實測）、第 2 輪 1 項 blocking（狀態行與尚未驗證清單矛盾）已修正，第 3 輪無 findings。
+- 外部 review：2 輪；provider codex；模型 gpt-6.1-sol；reasoningEffort high。第 1 輪 CHANGES，1 項 should（A4 的文字請求其實會送到 OpenAI，紀錄誤寫為不會到達）已修正；第 2 輪 APPROVE。用量：未提供，不估算。
+- 其後依 non-blocking 複查補註 A3、A6、A8、A9、手機寬度與 https 各列的證據來源與未實測部分；只改措辭，未另跑 review。
+- 使用者於 2026-11-07 確認勾選完成；驗收紀錄「尚未驗證」所列項目未另行回報結果。
 
 ### 加分項 OpenAI 語音（3.8、V1–V9、T9）規劃 review
 - 流程：plan-loop → sol-loop；1 輪。Provider codex；模型 gpt-6.1-sol；reasoningEffort high。
