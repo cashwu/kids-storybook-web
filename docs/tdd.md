@@ -1,14 +1,14 @@
 # 生活情境雙語有聲故事書 TDD 開發規範
 
-文件狀態：Active（驗證指令待 T0／T1 建立專案後補齊）
+文件狀態：Active
 
 ## 1. 適用範圍
 
 本規範適用於：
 
 - **共用邏輯**：故事資料格式、四頁／每頁 1–2 句／一對一繁中的驗證、輸入驗證（角色與情境不得只有空白，以及 T0 確認的長度上限）。
-- **Worker API**：故事文字、單張封面、單句語音三類 `/api/*` 請求的參數檢查、轉送 OpenAI、逾時、錯誤對應（無效 key、權限不足、限流、網路、逾時），以及 key 不出現在回應與 log。
-- **前端狀態邏輯**：生成狀態與素材狀態轉換、防重複提交、手動重試、新舊故事替換、播放狀態（同時只播一句、切頁停止並清除高亮、未就緒不可播放）。這些邏輯放在 composable 或純 TypeScript 模組中測試，不寫在元件 template 裡。
+- **Worker API**：故事文字、單張封面兩類 `/api/*` 請求的參數檢查、轉送 OpenAI、逾時、錯誤對應（無效 key、權限不足、限流、網路、逾時），以及 key 不出現在回應與 log。
+- **前端狀態邏輯**：生成狀態與素材狀態轉換、防重複提交、手動重試、新舊故事替換、播放狀態（同時只播一句、切頁停止並清除高亮、裝置無法朗讀時不可播放、單句出錯後回到可播放）。這些邏輯放在 composable 或純 TypeScript 模組中測試，不寫在元件 template 裡。
 
 純 Vue 元件的視覺排版不強制執行 Red／Green 單元測試循環，改以本機實際操作與桌面／手機寬度手動驗收為主；但**凡涉及生成流程、失敗與重試、新舊故事替換與播放控制**的邏輯，必須抽離至 composable 或共用模組並依本規範執行 TDD（修正 UI 互動 Bug 時，仍須先補上能重現問題的狀態邏輯測試）。
 
@@ -32,9 +32,9 @@
 * **透過可注入介面隔離外部邊界**：
   * OpenAI：Worker 透過可注入的 `fetch` 或 client 呼叫 OpenAI，測試注入假回應，並能指定回傳 401／403／429、網路錯誤、逾時、格式錯誤或拒絕。
   * Worker API：前端測試注入假的 API client，可控制每個請求的成功、失敗與回應順序（例如舊故事的素材在新故事替換後才回應）。
-  * 音訊播放：注入可控制的假 audio 播放器，驗證播放、暫停與停止的呼叫，不實際播放聲音。
+  * 朗讀：注入可控制的假 `speechSynthesis`（可觸發 start／end／error 與無聲音情境），驗證播放、暫停與停止的呼叫，不實際發聲。
   * 時間與逾時：使用 fake timers 或注入時鐘，不以真實等待驗證逾時。
-* **生成流程必須驗證成功、失敗與重試路徑**：文字、封面與語音都要涵蓋成功、各類失敗、逾時與手動重試；失敗時須確認沒有發出不該有的素材請求、沒有自動重試、已成功內容不變、畫面沒有顯示成功。
+* **生成流程必須驗證成功、失敗與重試路徑**：文字與封面都要涵蓋成功、各類失敗、逾時與手動重試；失敗時須確認沒有發出不該有的素材請求、沒有自動重試、已成功內容不變、畫面沒有顯示成功。
 * **Key 界線要有測試保護**：錯誤回應、log、故事資料與 URL 中不得出現測試送入的假 key；涉及新 API 或新錯誤路徑時補上對應測試。
 * 優先使用快速的單元測試（共用邏輯與狀態邏輯）；Worker 的路由、請求轉送與錯誤對應加入對應的離線整合測試。
 * 每次修改後執行相關測試；提交前必須執行完整離線測試、型別檢查與建置。
@@ -42,16 +42,15 @@
 
 ## 4. 基本驗證指令
 
-測試框架、型別檢查與 lint 工具尚未選定；PLAN 不指定測試框架，由 T0／T1 建立 Vite＋Vue 3＋TypeScript 專案與 Worker 時選定（引入新套件前先取得使用者同意），並在同一次修改中把實際指令補入本節。npm script 名稱以 `package.json` 為準，改變時同步更新本節。
-
-建立後本節至少需涵蓋以下檢查，於專案根目錄執行：
+測試框架為 Vitest（Node 環境，直接呼叫 Worker 的 fetch handler 並注入假 fetch，不啟動 workerd）；尚未選定 lint／format 工具。npm script 名稱以 `package.json` 為準，改變時同步更新本節。於專案根目錄執行：
 
 ```sh
-npm test            # 完整離線測試（共用邏輯、Worker、前端狀態邏輯）
-npm run typecheck   # 前端（含 .vue）與 Worker 的 TypeScript 型別檢查
-npm run lint        # 若有選定 lint／format 工具
-npm run build       # Vite 前端建置，產出 Worker Static Assets 使用的檔案
+npm test            # Vitest 完整離線測試（共用邏輯、Worker、前端狀態邏輯）
+npm run typecheck   # vue-tsc --build：前端（含 .vue）與 Worker 的 TypeScript 型別檢查
+npm run build       # Vite 建置，同時產出 Static Assets（dist/client）與 Worker
 ```
+
+本機手動確認同網域路由與畫面時用 `npm run dev`（Vite＋workerd）或 `npm run preview`（建置後以 `wrangler dev` 執行）。改動 `wrangler.jsonc` 後執行 `npm run cf-typegen` 更新 `worker-configuration.d.ts`。
 
 ### 真實 OpenAI 試驗與部署驗收
 
