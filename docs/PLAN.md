@@ -85,12 +85,12 @@ Demo 案例：喜歡恐龍、第一次上學而害怕。產出以恐龍角色經
 ### 3.7 T0 確認的模型與邊界
 以下由使用者於 2026-11-07 依 T0 實測確認；實測數據見第 5 節。
 - **故事文字**：Responses API，模型 `gpt-6-luna`、reasoning effort `medium`，Structured Outputs（`json_schema`，strict），`store: false`。模型與 reasoning effort 由部署設定（Worker 環境變數 `OPENAI_TEXT_MODEL`、`OPENAI_TEXT_REASONING_EFFORT`）調整，不是使用者選單；未設定時用上述預設值。要調整時寫在 `wrangler.jsonc` 的 `vars`：dashboard 設定的變數可能在下次 `wrangler deploy`（含 Workers Builds）時被覆蓋。
-- **封面**：Images API，模型 `gpt-image-2.6-flare`，動態 GIF（`output_format: "gif"`，預設 9 張影格），尺寸 `512x512`，品質 `low`。1024x1024 搭配 9 張影格會超過像素上限而回 400，不可使用。GIF 需要帳戶具備 GIF preview 權限。
+- **封面**：Images API，模型 `gpt-image-2.6-flare`，一張靜態 PNG（`output_format: "png"`），尺寸 `512x512`，品質 `low`。使用者於 2026-11-07 決定不用動態 GIF；桌面版封面最大顯示 400px，512x512 已足夠。T0 實測的是 GIF 輸出，靜態 PNG 的回應大小、等待時間與權限尚未以真實 key 驗證（見第 5 節待驗證）。
 - **朗讀**：瀏覽器內建 `speechSynthesis`，每句一個 utterance；按下播放就高亮該句，不等 `start` 事件（讓暫停鈕立即可用），由該句的 `end`／`error` 事件清除高亮；`lang` 為 `en-US`。聲音用裝置的預設 en-US 聲音，沒有就用任一 `en-*` 聲音。語速由前端建置設定調整，預設 `0.1`。各裝置的聲音與實際最低語速不同（使用者試聽時 0.1 與 0.3 在部分裝置上差異不大），這是已接受的限制。OpenAI 語音以加分項提供，規則見 3.8。
 - **輸入上限**：去除頭尾空白後，角色 1–30 字元、生活情境 1–100 字元，字元以 Unicode code point 計算（前端與 Worker 相同；中文字、英文字母各算 1，組合 emoji 可能算成多個）；key 必填、不得含空白、最多 200 字元；頁數必填，為 4–10 的整數，預設 4。超過上限不送出生成請求，並指出需要修正的欄位。
 - **逾時**：Worker 對 OpenAI 的請求上限為文字 60 秒、封面 120 秒；加分項 OpenAI 語音（3.8）單句 30 秒。瀏覽器對 Worker 的逾時各多 10 秒，讓 Worker 的逾時錯誤先回到前端。逾時一律結束為失敗，不自動重試。
 - **OpenAI 呼叫方式**：Worker 直接用 `fetch` 呼叫 OpenAI REST API，不引入 `openai` SDK，因此沒有 SDK 內建重試（預設 2 次）或 SDK log 需要關閉；每個請求以 `AbortSignal.timeout` 套用上述逾時。
-- **轉送方式**：成功的封面回應（約 1.5 MB 的 base64 JSON）由 Worker 串流轉送，不在 Worker 內解碼；Free 方案每個請求只有 10 ms CPU 時間，等待 OpenAI 的時間不計入。
+- **轉送方式**：成功的封面回應（base64 圖片 JSON；T0 的 GIF 約 1.5 MB，PNG 的大小尚未實測）由 Worker 串流轉送，不在 Worker 內解碼；Free 方案每個請求只有 10 ms CPU 時間，等待 OpenAI 的時間不計入。
 
 ### 3.8 加分項：OpenAI 語音朗讀
 以下由使用者於 2026-11-07 確認（中文朗讀也用 OpenAI 語音為同日試聽後追加）。要解決的問題：裝置內建語音（例如 Safari 的 Samantha、zh-TW 的 Meijia）品質不夠好，使用者可選擇改用更自然的 OpenAI AI 語音，並清楚知道會用自己的 key 額外計費。核心驗收不依賴本節。
@@ -158,6 +158,7 @@ Z5 聲音消失：中文朗讀中 zh-TW 聲音從清單消失 → 停止朗讀�
 - 朗讀：使用者已在試驗頁用 Safari 的 Samantha (en-US) 試聽 `speechSynthesis` 並接受（Safari 的聲音清單沒有 Jenny）；其他瀏覽器與手機尚未試聽。各裝置與瀏覽器的聲音、最低語速與 iOS 手勢限制，在 T3 與 T5 以實機確認。
 - Workers Logs 會保存 URL 與自訂 header 值，因此核心版維持 `observability` 開啟，但 key 只放在 `Authorization`（3.2），Worker 不以 `console` 記錄請求 header、body 或 OpenAI 錯誤原文。T5 已部署並以假 key（含 `T5MARKER`，只放在 `Authorization`）呼叫 `/api/story`，Worker 回應不含 key；dashboard 搜尋結果尚待使用者確認。
 - 封面在 Free 方案的 CPU 用量：試驗以串流轉送未解碼，未量測實際 CPU 時間；T4／T5 部署後確認。
+- 靜態 PNG 封面（3.7，2026-11-07 由 GIF 改用）：`gpt-image-2.6-flare` 以 `512x512`＋`low`＋`png` 能否成功、回應大小與等待時間尚未以真實 key 實測；若回 400，回報錯誤證據並與使用者確認尺寸，不自行換模型。
 - 朗讀可懂度與故事適齡：用 Demo 情境人工聽讀，不能只憑資料格式認定品質。
 - 輸入上限與逾時已於 3.7 確認；上述秒數為單次實測，不承諾生成秒數或固定成本。
 - 加分項的瀏覽器容量、離線朗讀與匯出大小未驗證；未達可用標準就不交付該加分項。

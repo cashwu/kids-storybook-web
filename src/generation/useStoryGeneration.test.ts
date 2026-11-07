@@ -102,7 +102,7 @@ function setup() {
   return { ...fake, ...speech, ...covers, ...voices, gen }
 }
 
-const COVER_OK: GenerateCoverResult = { ok: true, src: 'data:image/gif;base64,R0lGOD' }
+const COVER_OK: GenerateCoverResult = { ok: true, src: 'data:image/png;base64,iVBORw0KGgo' }
 
 /** 送出並以指定結果完成這次文字請求；文字成功時接著以 cover（預設成功）完成封面請求，故事才會發佈。 */
 async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryResult, cover: GenerateCoverResult = COVER_OK) {
@@ -347,10 +347,10 @@ describe('useStoryGeneration 與封面', () => {
     expect(ctx.gen.story.value).toBeNull()
     expect(ctx.gen.formOpen.value).toBe(true)
 
-    await ctx.respondCover({ ok: true, src: 'data:image/gif;base64,A' })
+    await ctx.respondCover({ ok: true, src: 'data:image/png;base64,A' })
     await done
     expect(ctx.gen.story.value).toEqual(makeStory('A'))
-    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+    expect(ctx.cover.src.value).toBe('data:image/png;base64,A')
     expect(ctx.gen.status.value).toBe('idle')
     expect(ctx.gen.formOpen.value).toBe(false)
   })
@@ -411,18 +411,18 @@ describe('useStoryGeneration 與封面', () => {
   // B 封面失敗也不顯示 A 的封面。
   it('已有 A 與 A 的封面：B 失敗或等封面時保留 A 的封面；B 發佈後只顯示 B 的封面結果', async () => {
     const ctx = setup()
-    await submitWith(ctx, { ok: true, story: makeStory('A') }, { ok: true, src: 'data:image/gif;base64,A' })
+    await submitWith(ctx, { ok: true, story: makeStory('A') }, { ok: true, src: 'data:image/png;base64,A' })
 
     await submitWith(ctx, fail('rate_limited'))
     expect(ctx.gen.story.value).toEqual(makeStory('A'))
-    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+    expect(ctx.cover.src.value).toBe('data:image/png;base64,A')
     expect(ctx.coverCalls()).toHaveLength(1)
 
     const done = ctx.gen.submit()
     ctx.respond({ ok: true, story: makeStory('B') })
     await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(2))
     expect(ctx.gen.story.value).toEqual(makeStory('A'))
-    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+    expect(ctx.cover.src.value).toBe('data:image/png;base64,A')
 
     await ctx.respondCover({ ok: false, error: 'cover_refused' })
     await done

@@ -15,10 +15,10 @@ const story: Story = {
   })),
 }
 
-/** GIF 檔頭 `GIF89a` 的 base64 開頭。 */
-const GIF_B64 = 'R0lGODlhAQABAAAAACw='
+/** PNG 檔頭（89 50 4E 47 0D 0A 1A 0A）的 base64 開頭。 */
+const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
 
-function setup(respond: (init: RequestInit) => Response | Promise<Response> = () => Response.json({ data: [{ b64_json: GIF_B64 }] })) {
+function setup(respond: (init: RequestInit) => Response | Promise<Response> = () => Response.json({ data: [{ b64_json: PNG_B64 }] })) {
   const timeouts: Array<{ ms: number; controller: AbortController }> = []
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => respond(init ?? {}))
   const api = createCoverApi({
@@ -58,17 +58,17 @@ describe('createCoverApi().generateCover', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(timeouts[0]?.controller.signal)
   })
 
-  it('成功回應帶 GIF 時回傳可給 <img> 用的 GIF data URL', async () => {
+  it('成功回應帶 PNG 時回傳可給 <img> 用的 PNG data URL', async () => {
     const { api } = setup()
 
-    expect(await api.generateCover(story, KEY)).toEqual({ ok: true, src: `data:image/gif;base64,${GIF_B64}` })
+    expect(await api.generateCover(story, KEY)).toEqual({ ok: true, src: `data:image/png;base64,${PNG_B64}` })
   })
 
-  // 成功狀態但沒有可顯示的 GIF：不能當成封面就緒，否則畫面會顯示破圖且沒有重試入口。
+  // 成功狀態但沒有可顯示的 PNG：不能當成封面就緒，否則畫面會顯示破圖且沒有重試入口。
   it.each([
     ['沒有 data', () => Response.json({})],
     ['b64_json 是空字串', () => Response.json({ data: [{ b64_json: '' }] })],
-    ['內容不是 GIF（PNG 檔頭）', () => Response.json({ data: [{ b64_json: 'iVBORw0KGgo=' }] })],
+    ['內容不是 PNG（GIF 檔頭）', () => Response.json({ data: [{ b64_json: 'R0lGODlhAQABAAAAACw=' }] })],
     ['body 不是 JSON', () => new Response('<html>gateway</html>', { status: 200 })],
   ])('成功狀態但%s時回 invalid_cover', async (_name, respond) => {
     const { api } = setup(respond)
@@ -102,7 +102,7 @@ describe('createCoverApi().generateCover', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  // 封面 body 約 1.5 MB，逾時可能發生在讀 body 途中；這時也必須結束為 timeout，而不是誤判成格式錯誤。
+  // 封面 body 是較大的 base64 圖片 JSON，逾時可能發生在讀 body 途中；這時也必須結束為 timeout，而不是誤判成格式錯誤。
   it.each([
     ['等待回應時', false],
     ['讀取 body 途中', true],

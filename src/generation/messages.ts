@@ -62,7 +62,7 @@ export const COVER_ERROR_MESSAGES: Record<CoverApiErrorCode, string> = {
   not_found: '封面服務暫時無法使用。',
   method_not_allowed: '封面服務暫時無法使用。',
   invalid_key: 'API key 無效。',
-  permission_denied: '這把 API key 沒有產生圖片或動態 GIF 的權限。',
+  permission_denied: '這把 API key 沒有產生圖片的權限。',
   rate_limited: 'OpenAI 暫時限制了請求次數，請稍等一下。',
   insufficient_quota: '這把 API key 的額度不足。',
   timeout: '等待太久沒有回應；逾時不代表 OpenAI 沒有處理，這次可能已經計費。',

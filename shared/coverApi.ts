@@ -14,7 +14,7 @@ export interface CoverRequestBody {
 
 /**
  * 成功時 Worker 把 OpenAI Images API 的回應原樣串流轉送，不在 Worker 內解碼（PLAN 3.7：
- * 約 1.5 MB 的 base64 JSON，Free 方案每請求只有 10 ms CPU）。瀏覽器只讀 `data[0].b64_json`。
+ * base64 圖片 JSON 體積大，Free 方案每請求只有 10 ms CPU）。瀏覽器只讀 `data[0].b64_json`。
  */
 export interface CoverSuccessBody {
   data: Array<{ b64_json: string }>
@@ -28,7 +28,7 @@ export type CoverApiErrorCode =
   | Exclude<StoryApiErrorCode, 'story_refused' | 'invalid_story'>
   /** OpenAI 的安全系統拒絕產生這張圖（400 `moderation_blocked`）。 */
   | 'cover_refused'
-  /** 成功回應裡沒有可顯示的 GIF。 */
+  /** 成功回應裡沒有可顯示的 PNG。 */
   | 'invalid_cover'
 
 const ERROR_CODES: Record<CoverApiErrorCode, true> = {

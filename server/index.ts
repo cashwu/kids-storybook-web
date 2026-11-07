@@ -141,8 +141,8 @@ async function readJson(request: Request): Promise<unknown> {
 /**
  * 單張封面（PLAN 3.3、3.7）。與故事文字相同只呼叫 OpenAI 一次、不自動重試，失敗由使用者手動重試封面。
  *
- * 成功回應不在 Worker 內解析或解碼，直接把 OpenAI 的 body 串流給瀏覽器：約 1.5 MB 的 base64 JSON
- * 解析會超過 Free 方案每請求 10 ms 的 CPU 時間。只轉送 body，不轉送 OpenAI 的回應 header。
+ * 成功回應不在 Worker 內解析或解碼，直接把 OpenAI 的 body 串流給瀏覽器：base64 圖片 JSON 體積大，
+ * 解析可能超過 Free 方案每請求 10 ms 的 CPU 時間。只轉送 body，不轉送 OpenAI 的回應 header。
  * 逾時 signal 在回應 header 送出後仍作用在 body 串流上：逾時就中斷串流，瀏覽器讀 body 失敗而結束為失敗。
  */
 async function handleCover(request: Request, deps: WorkerDeps): Promise<Response> {

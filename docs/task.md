@@ -164,14 +164,14 @@ T2 完成。不需要 OpenAI key 或 Worker API。
 - 重新整理或關閉分頁前的離開確認（PLAN 3.2，使用者於 2026-11-07 新增）：判斷條件以離線測試驗證，瀏覽器實際彈窗手動確認。
 
 ### 實作補充（T4 實作時整理）
-- API 契約在 `shared/coverApi.ts`：`POST /api/cover`，key 只在 `Authorization: Bearer`，body 只有 `{ story }`；Worker 重新驗證故事（4–10 頁、每頁 2 句、非空）與 key，不合格回 `invalid_input`、不轉送 OpenAI。成功時把 OpenAI 的 body 串流轉送、不解碼，也不轉送 OpenAI 的回應 header；錯誤沿用文字 API 的類別，另加 `cover_refused`（400 `moderation_blocked`）與 `invalid_cover`（成功回應不是 GIF）。
-- prompt 由故事標題與英文句子組成，要求圖中不放文字；故事內容明示只當插畫參考。
+- API 契約在 `shared/coverApi.ts`：`POST /api/cover`，key 只在 `Authorization: Bearer`，body 只有 `{ story }`；Worker 重新驗證故事（4–10 頁、每頁 2 句、非空）與 key，不合格回 `invalid_input`、不轉送 OpenAI。成功時把 OpenAI 的 body 串流轉送、不解碼，也不轉送 OpenAI 的回應 header；錯誤沿用文字 API 的類別，另加 `cover_refused`（400 `moderation_blocked`）與 `invalid_cover`（成功回應不是 PNG）。
+- prompt 由故事標題與英文句子組成，要求圖中不放文字、不要求動畫（封面是一張靜態 PNG，PLAN 3.7）；故事內容明示只當插畫參考。
 - 封面請求結束（成功或失敗）才把文字與封面一起發佈，等待期間畫面只顯示「故事生成中」，舊故事與它的封面仍可讀；封面失敗照樣發佈故事，封面位置顯示失敗原因與重試，重試前確認可能再次計費。等封面與重試封面時都不能建立新故事；反之建立新故事期間（等文字、等封面）不能重試舊故事的封面，避免替即將被替換的故事多付一次費用。
 - 桌面寬度封面 400px 正方形（窄時最多半寬），手機寬度維持標題旁小圖（使用者 2026-11-07 確認）。
 - 行為對應測試：`server/cover.test.ts`、`src/api/coverApi.test.ts`、`src/generation/useCoverGeneration.test.ts`、`src/generation/useStoryGeneration.test.ts`「與封面」、`src/generation/leaveGuard.test.ts`（全部使用假回應，不能證明真實封面的內容、等待時間或帳戶權限）。
 
 ### 依賴與開工條件
-T3 完成；封面模型、GIF 尺寸與逾時見 PLAN 3.7，圖片與 GIF 權限已於 T0 驗證，真實測試權限具備。
+T3 完成；封面模型、格式、尺寸與逾時見 PLAN 3.7，圖片權限已於 T0 以 GIF 輸出驗證（PNG 輸出尚未實測，見 PLAN 第 5 節），真實測試權限具備。
 
 ### 驗收
 - 真實完成 A1 的四頁文字、封面與朗讀；缺少圖片權限不算正常路徑通過。

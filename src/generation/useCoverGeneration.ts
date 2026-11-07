@@ -8,7 +8,7 @@ export type CoverStatus = 'idle' | 'generating' | 'ready' | 'failed'
 
 export interface CoverGeneration {
   status: Readonly<Ref<CoverStatus>>
-  /** 目前這本書封面的 GIF data URL。 */
+  /** 目前這本書封面的 PNG data URL。 */
   src: Readonly<Ref<string | null>>
   error: Readonly<Ref<CoverApiErrorCode | null>>
   /** 重試請求進行中；文字生成以此擋下新故事（PLAN 3.3：生成請求進行中不另開新故事）。 */
@@ -38,7 +38,7 @@ export interface CoverGeneration {
  */
 export function useCoverGeneration(api: CoverApi): CoverGeneration {
   const status = ref<CoverStatus>('idle')
-  // GIF data URL 約 1.5 MB，整段替換、不需要深層響應。
+  // PNG data URL 體積大，整段替換、不需要深層響應。
   const src = shallowRef<string | null>(null)
   const error = ref<CoverApiErrorCode | null>(null)
   let current: { story: Story; apiKey: string } | null = null

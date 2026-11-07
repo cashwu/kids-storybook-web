@@ -25,7 +25,7 @@ function confirmRetry() {
 </script>
 
 <template>
-  <!-- 封面只以 <img> 顯示 GIF data URL，不把模型輸出當成網頁內容執行（PLAN 3.1）。 -->
+  <!-- 封面只以 <img> 顯示 PNG data URL，不把模型輸出當成網頁內容執行（PLAN 3.1）。 -->
   <div v-if="status === 'ready' && src" class="cover ok">
     <img :src="src" :alt="`故事封面：${story.title.zh}`" />
     <span class="tag">AI 封面</span>

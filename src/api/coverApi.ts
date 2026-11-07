@@ -22,8 +22,8 @@ export interface CoverApiDeps {
   timeoutSignal: (ms: number) => AbortSignal
 }
 
-/** GIF 檔頭（`GIF87a`／`GIF89a`）以 base64 編碼後的共同開頭。 */
-const GIF_BASE64_PREFIX = 'R0lGOD'
+/** PNG 檔頭（89 50 4E 47 0D 0A 1A 0A）以 base64 編碼後的開頭。 */
+const PNG_BASE64_PREFIX = 'iVBORw0KGgo'
 
 /** 只接受本 app 定義的錯誤類別；其他內容（例如代理回的 HTML）一律視為 upstream_error。 */
 function parseError(text: string): GenerateCoverResult {
@@ -37,8 +37,8 @@ function parseError(text: string): GenerateCoverResult {
 }
 
 /**
- * 從 Worker 原樣轉送的 OpenAI 回應取出 GIF。只接受 GIF 檔頭，其他內容當成 invalid_cover：
- * 畫面以 `<img>` 顯示，不會執行內容，但非 GIF 的資料不是規格要的動態封面，也可能是破圖。
+ * 從 Worker 原樣轉送的 OpenAI 回應取出 PNG。只接受 PNG 檔頭，其他內容當成 invalid_cover：
+ * 畫面以 `<img>` 顯示，不會執行內容，但其他格式與 data URL 宣告的 `image/png` 不符，可能顯示成破圖。
  */
 function parseCover(text: string): GenerateCoverResult {
   let b64: unknown
@@ -47,15 +47,15 @@ function parseCover(text: string): GenerateCoverResult {
   } catch {
     b64 = undefined
   }
-  if (typeof b64 !== 'string' || !b64.startsWith(GIF_BASE64_PREFIX)) return { ok: false, error: 'invalid_cover' }
-  return { ok: true, src: `data:image/gif;base64,${b64}` }
+  if (typeof b64 !== 'string' || !b64.startsWith(PNG_BASE64_PREFIX)) return { ok: false, error: 'invalid_cover' }
+  return { ok: true, src: `data:image/png;base64,${b64}` }
 }
 
 /**
  * 每次呼叫只送一次請求，不自動重試（PLAN 3.3）；逾時或網路錯誤一律結束為失敗，由使用者手動重試封面。
  * key 只放在 Authorization header，不放進 URL、body 或自訂 header（PLAN 3.2）。
  *
- * 逾時 signal 同時涵蓋等待回應與讀完 body：封面約 1.5 MB，可能在讀 body 途中逾時。
+ * 逾時 signal 同時涵蓋等待回應與讀完 body：封面是 base64 圖片 JSON、body 較大，可能在讀 body 途中逾時。
  * Worker 自己逾時而中斷串流時，瀏覽器讀 body 失敗、signal 尚未觸發，結束為 network_error；
  * 截斷的內容不會被解析成封面。
  */

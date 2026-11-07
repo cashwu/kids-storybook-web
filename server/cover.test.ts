@@ -3,7 +3,7 @@ import type { Story } from '../shared/story'
 import { createWorker } from './index'
 
 // POST /api/cover 的 handler 測試：直接呼叫 fetch handler 並注入假的 OpenAI fetch，不經過 workerd、不連網。
-// 只能證明 handler 的回應與送給 OpenAI 的請求內容；真實模型能否產生 GIF、帳戶的 GIF 權限、
+// 只能證明 handler 的回應與送給 OpenAI 的請求內容；真實模型能否產生 PNG、帳戶的圖片權限、
 // 等待時間與 Free 方案的 CPU 用量，由 T4 真實試驗與 T5 部署驗收確認。
 
 /** 明顯的假 key；末 4 碼 0000 對應 OpenAI 401 訊息帶回的 key 片段。 */
@@ -20,8 +20,8 @@ const story: Story = {
   })),
 }
 
-/** GIF 檔頭 `GIF89a` 的 base64 開頭，代表真的是 GIF。 */
-const GIF_B64 = 'R0lGODlhAQABAAAAACw='
+/** PNG 檔頭（89 50 4E 47 0D 0A 1A 0A）的 base64 開頭，代表真的是 PNG。 */
+const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
 
 function coverRequest(options: { url?: string; key?: string | null; body?: unknown; method?: string } = {}) {
   const headers = new Headers({ 'content-type': 'application/json' })
@@ -34,7 +34,7 @@ function coverRequest(options: { url?: string; key?: string | null; body?: unkno
   })
 }
 
-function openAIImage(b64 = GIF_B64) {
+function openAIImage(b64 = PNG_B64) {
   return Response.json(
     { created: 1, data: [{ b64_json: b64 }], usage: { output_tokens: 1172 } },
     { headers: { 'openai-organization': 'org-secret', 'x-request-id': 'req_1' } },
@@ -66,7 +66,7 @@ afterEach(() => {
 })
 
 describe('POST /api/cover 成功', () => {
-  it('轉送 Images API：key 只在 Authorization，使用 PLAN 3.7 的模型、GIF、512x512 與 low', async () => {
+  it('轉送 Images API：key 只在 Authorization，使用 PLAN 3.7 的模型、靜態 PNG、512x512 與 low', async () => {
     const { handler, fetchMock } = setup()
 
     await handler.fetch(coverRequest(), env)
@@ -78,7 +78,7 @@ describe('POST /api/cover 成功', () => {
     const body = sentBody(fetchMock)
     expect(body).toMatchObject({
       model: 'gpt-image-2.6-flare',
-      output_format: 'gif',
+      output_format: 'png',
       size: '512x512',
       quality: 'low',
       n: 1,
@@ -87,7 +87,8 @@ describe('POST /api/cover 成功', () => {
   })
 
   // 封面要與這本故事相符（T4）：prompt 帶入故事標題與英文內容，故事以外的使用者輸入不會進來。
-  it('送給模型的 prompt 包含故事標題與內容，並要求圖中不放文字', async () => {
+  // 封面是一張靜態圖：prompt 不能再要求動畫，否則模型描述的畫面與實際輸出格式不一致。
+  it('送給模型的 prompt 包含故事標題與內容，要求圖中不放文字，且不要求動畫', async () => {
     const { handler, fetchMock } = setup()
 
     await handler.fetch(coverRequest(), env)
@@ -97,6 +98,7 @@ describe('POST /api/cover 成功', () => {
     expect(prompt).toContain('Dino walks to school on page 1.')
     expect(prompt).toContain('He waves to Mom.')
     expect(prompt).toMatch(/no (words|text)/i)
+    expect(prompt).not.toMatch(/animat|loop/i)
   })
 
   // 成功回應原樣串流轉送（PLAN 3.7），但不帶 OpenAI 的回應 header（例如 organization），並禁止快取。
@@ -109,7 +111,7 @@ describe('POST /api/cover 成功', () => {
     expect(res.headers.get('cache-control')).toBe('no-store')
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(res.headers.get('openai-organization')).toBeNull()
-    expect(await res.json()).toMatchObject({ data: [{ b64_json: GIF_B64 }] })
+    expect(await res.json()).toMatchObject({ data: [{ b64_json: PNG_B64 }] })
   })
 
   it('套用 120 秒逾時 signal 到 OpenAI 請求', async () => {
@@ -198,9 +200,9 @@ describe('POST /api/cover 失敗', () => {
   })
 
   // 每種 OpenAI 錯誤都對應到本 app 的錯誤類別，且只呼叫一次 OpenAI（不自動重試付費請求）。
-  // 403 涵蓋帳戶沒有圖片或 GIF 權限的情況；400 moderation_blocked 是安全系統拒絕這張圖。
+  // 403 涵蓋帳戶沒有圖片生成權限的情況；400 moderation_blocked 是安全系統拒絕這張圖。
   it.each([
-    [403, { message: 'GIF output requires access', code: 'model_not_found' }, 403, 'permission_denied'],
+    [403, { message: 'Image generation requires access', code: 'model_not_found' }, 403, 'permission_denied'],
     [429, { message: 'slow down', code: 'rate_limit_exceeded' }, 429, 'rate_limited'],
     [429, { message: 'no quota', code: 'insufficient_quota' }, 429, 'insufficient_quota'],
     [400, { message: 'blocked', code: 'moderation_blocked' }, 502, 'cover_refused'],

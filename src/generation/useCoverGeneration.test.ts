@@ -65,25 +65,25 @@ describe('useCoverGeneration', () => {
   // A6：等 B 的封面時 A 仍是目前的書，A 的封面要留著；request 只回傳結果，不改變畫面上的封面。
   it('request 以故事與 key 送一次請求並回傳結果，不改變目前這本書的封面', async () => {
     const { cover, calls, respond } = setup()
-    cover.publish(makeStory('A'), KEY_A, ok('data:image/gif;base64,A'))
+    cover.publish(makeStory('A'), KEY_A, ok('data:image/png;base64,A'))
     const storyB = makeStory('B')
 
     const pending = cover.request(storyB, KEY_B)
     expect(calls()).toEqual([[storyB, KEY_B]])
-    expect(cover.src.value).toBe('data:image/gif;base64,A')
+    expect(cover.src.value).toBe('data:image/png;base64,A')
     await respond(fail('timeout'))
 
     expect(await pending).toEqual(fail('timeout'))
-    expect(cover.src.value).toBe('data:image/gif;base64,A')
+    expect(cover.src.value).toBe('data:image/png;base64,A')
     expect(cover.status.value).toBe('ready')
   })
 
   it('publish 成功結果時顯示封面；失敗結果時進入 failed、記錄錯誤且不自動重試', () => {
     const { cover, calls } = setup()
 
-    cover.publish(makeStory('A'), KEY_A, ok('data:image/gif;base64,A'))
+    cover.publish(makeStory('A'), KEY_A, ok('data:image/png;base64,A'))
     expect(cover.status.value).toBe('ready')
-    expect(cover.src.value).toBe('data:image/gif;base64,A')
+    expect(cover.src.value).toBe('data:image/png;base64,A')
 
     cover.publish(makeStory('B'), KEY_B, fail('cover_refused'))
     // A6：B 的封面失敗時不能留著 A 的封面。
@@ -105,10 +105,10 @@ describe('useCoverGeneration', () => {
     expect(cover.busy.value).toBe(true)
     expect(cover.error.value).toBeNull()
     expect(calls()).toEqual([[story, KEY_A]])
-    await respond(ok('data:image/gif;base64,A2'))
+    await respond(ok('data:image/png;base64,A2'))
     expect(cover.status.value).toBe('ready')
     expect(cover.busy.value).toBe(false)
-    expect(cover.src.value).toBe('data:image/gif;base64,A2')
+    expect(cover.src.value).toBe('data:image/png;base64,A2')
   })
 
   it('retry 再次失敗時回到 failed 並記錄新的錯誤', async () => {
@@ -132,7 +132,7 @@ describe('useCoverGeneration', () => {
         ctx.cover.retry()
       },
     ],
-    ['封面已成功', async (ctx: ReturnType<typeof setup>) => ctx.cover.publish(makeStory('A'), KEY_A, ok('data:image/gif;base64,A'))],
+    ['封面已成功', async (ctx: ReturnType<typeof setup>) => ctx.cover.publish(makeStory('A'), KEY_A, ok('data:image/png;base64,A'))],
   ])('%s時 retry 不送出請求', async (_name, arrange) => {
     const ctx = setup()
     await arrange(ctx)
@@ -151,7 +151,7 @@ describe('useCoverGeneration', () => {
     cover.retry()
 
     cover.publish(makeStory('B'), KEY_B, fail('cover_refused'))
-    await respond(ok('data:image/gif;base64,A'))
+    await respond(ok('data:image/png;base64,A'))
 
     expect(cover.src.value).toBeNull()
     expect(cover.status.value).toBe('failed')
