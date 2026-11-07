@@ -7,15 +7,19 @@ import type { StoryGeneration } from '../generation/useStoryGeneration'
 
 // 只負責呈現與轉發操作；送出條件、防重複提交與失敗處理都在 useStoryGeneration（tdd.md 1）。
 const props = defineProps<{ generation: StoryGeneration }>()
-const { form, fieldErrors, status, error, story } = props.generation
+const { form, fieldErrors, status, error, story, coverBusy } = props.generation
 
-const busy = computed(() => status.value === 'generating')
+// 等封面（drawing）時表單同樣鎖定：新故事要等封面結束才和文字一起發佈。
+const busy = computed(() => status.value === 'generating' || status.value === 'drawing')
 const hasStory = computed(() => story.value !== null)
 const errorCount = computed(() => Object.keys(fieldErrors.value).length)
 const failure = computed(() => (status.value === 'failed' && error.value ? STORY_ERROR_MESSAGES[error.value] : null))
 
 const buttonLabel = computed(() => {
-  if (busy.value) return '正在寫故事…'
+  // 寫文字與畫封面對使用者是同一件事，畫面不分開說明（使用者 2026-11-07 確認）。
+  if (busy.value) return '故事生成中…'
+  // 重試封面時不開新故事（PLAN 3.3）；通常表單此時已收合，這裡防止展開時按了卻沒有反應。
+  if (coverBusy.value) return '封面產生完才能建立新故事'
   if (status.value === 'failed') return '↻ 再試一次'
   return hasStory.value ? '✨ 產生新故事' : '✨ 產生故事'
 })
@@ -177,11 +181,11 @@ function errorOf(field: StoryInputField) {
         <ul class="privacy">
           <li>key 只放在這個分頁的記憶體，<b>重新整理就會消失</b>，故事也會一起消失。</li>
           <li>key 與故事需求會經過本 app 的後端送往 OpenAI；本 app 不保存、不記錄 key。</li>
-          <li>產生故事的 API 用量由這把 key 負擔。</li>
+          <li>產生故事與封面的 API 用量由這把 key 負擔。</li>
         </ul>
       </div>
 
-      <button type="button" class="btn primary" :disabled="busy" @click="generation.submit()">
+      <button type="button" class="btn primary" :disabled="busy || coverBusy" @click="generation.submit()">
         {{ buttonLabel }}
       </button>
     </div>
@@ -189,8 +193,8 @@ function errorOf(field: StoryInputField) {
     <div v-if="busy" class="status info" role="status">
       <span class="spin" aria-hidden="true" />
       <div>
-        <b>正在寫故事文字</b>
-        <p>檢查頁數與翻譯都通過後才會顯示故事。請不要重新整理，否則 key 與故事都會清除。</p>
+        <b>故事生成中</b>
+        <p>請不要重新整理，否則 key 與故事都會清除。</p>
       </div>
     </div>
     <div v-else-if="errorCount > 0" class="status err" role="alert">

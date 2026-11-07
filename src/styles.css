@@ -90,6 +90,7 @@ input.page-count { width: 7em; }
   font-size: 13px; color: var(--subtext0); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .newbar .cur b { color: var(--text); }
+.newbar .hint { font-size: 12px; color: var(--subtext0); margin-top: 2px; }
 
 /* 還沒有故事時的閱讀區 */
 .empty { padding: 56px 28px; text-align: center; color: var(--subtext0); }
@@ -99,22 +100,15 @@ input.page-count { width: 7em; }
 .banner { margin: 16px 20px 0; }
 
 .book-head {
-  display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 20px;
+  /* 封面 400px 正方形；寬度不夠時縮到一半，讓標題仍放得下。 */
+  display: grid; grid-template-columns: min(400px, 50%) 1fr; gap: 24px; padding: 20px;
   border-bottom: 1px solid var(--crust); align-items: center;
 }
 .cover {
   aspect-ratio: 1 / 1; border-radius: 14px; position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: center; flex-direction: column;
 }
-.cover.placeholder {
-  background: repeating-linear-gradient(45deg, var(--mantle) 0 12px, var(--crust) 12px 24px);
-  color: var(--subtext0);
-}
-.cover .art { font-size: 64px; }
-.cover .tag {
-  position: absolute; bottom: 7px; right: 7px; background: #4c4f69bb; color: var(--base);
-  font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
-}
+/* 封面各狀態的樣式在 StoryCover.vue。 */
 .titles h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; line-height: 1.2; margin: 4px 0 2px; }
 .titles .zh { font-size: 17px; color: var(--subtext1); margin: 0 0 10px; }
 .chip {
@@ -171,8 +165,6 @@ input.page-count { width: 7em; }
   .empty { padding: 28px 18px; }
   .banner { margin: 12px 12px 0; }
   .book-head { grid-template-columns: 104px 1fr; gap: 14px; padding: 14px; }
-  .cover .art { font-size: 36px; }
-  .cover .tag { font-size: 9px; padding: 0 5px; bottom: 4px; right: 4px; }
   .titles h1 { font-size: 22px; }
   .titles .zh { font-size: 15px; margin-bottom: 6px; }
   .page { padding: 12px; }

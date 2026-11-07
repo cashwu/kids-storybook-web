@@ -4,11 +4,13 @@
 // Key 的安全邊界（PLAN 3.2）：
 // - key 只從 Authorization header 讀取，只轉送到 OpenAI 的 Authorization header。
 // - 不以 console 記錄請求 header、body 或 OpenAI 的回應內容；Workers Logs 開啟，任何 console 輸出都會被保存。
-// - 錯誤回應只含本 app 的錯誤類別（StoryApiErrorCode），不含 OpenAI 的錯誤訊息原文。
+// - 錯誤回應只含本 app 的錯誤類別（StoryApiErrorCode／CoverApiErrorCode），不含 OpenAI 的錯誤訊息原文。
 // - Worker 不保存任何請求資料，每個請求彼此獨立，不同使用者拿不到彼此的故事（A9）。
-import { STORY_API_PATH, WORKER_TEXT_TIMEOUT_MS, type StoryApiErrorCode, type StoryErrorBody } from '../shared/storyApi'
+import { STORY_API_PATH, WORKER_TEXT_TIMEOUT_MS, type StoryApiErrorCode } from '../shared/storyApi'
+import { COVER_API_PATH, WORKER_COVER_TIMEOUT_MS, type CoverApiErrorCode } from '../shared/coverApi'
 import { isLoopbackHost } from '../shared/loopback'
-import { validateStoryInput, type StoryInputField } from '../shared/storyInput'
+import { checkApiKey, validateStoryInput, type StoryInputField } from '../shared/storyInput'
+import { buildCoverRequest, mapCoverError, OPENAI_IMAGES_URL, parseCoverStory } from './cover'
 import { buildStoryTextRequest, mapOpenAIError, OPENAI_RESPONSES_URL, parseStoryTextResponse } from './storyText'
 
 export interface WorkerDeps {
@@ -18,7 +20,9 @@ export interface WorkerDeps {
   timeoutSignal: (ms: number) => AbortSignal
 }
 
-const ERROR_STATUS: Record<StoryApiErrorCode, number> = {
+type ApiErrorCode = StoryApiErrorCode | CoverApiErrorCode
+
+const ERROR_STATUS: Record<ApiErrorCode, number> = {
   invalid_input: 400,
   insecure_request: 403,
   not_found: 404,
@@ -32,6 +36,8 @@ const ERROR_STATUS: Record<StoryApiErrorCode, number> = {
   upstream_error: 502,
   story_refused: 502,
   invalid_story: 502,
+  cover_refused: 502,
+  invalid_cover: 502,
 }
 
 /** API 回應含使用者的故事需求與生成結果，一律 no-store，不讓瀏覽器或中間層快取。 */
@@ -39,8 +45,9 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { 'cache-control': 'no-store' } })
 }
 
-function errorResponse(error: StoryApiErrorCode, fields?: StoryInputField[]): Response {
-  const body: StoryErrorBody = fields ? { error, fields } : { error }
+function errorResponse(error: ApiErrorCode, fields?: StoryInputField[]): Response {
+  // fields 只有故事文字 API 的 invalid_input 會帶（StoryErrorBody）；封面 API 的錯誤只有 error（CoverErrorBody）。
+  const body = fields ? { error, fields } : { error }
   return json(body, ERROR_STATUS[error])
 }
 
@@ -120,13 +127,58 @@ async function handleStory(request: Request, env: Env, deps: WorkerDeps): Promis
   }
 }
 
+async function readJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 單張封面（PLAN 3.3、3.7）。與故事文字相同只呼叫 OpenAI 一次、不自動重試，失敗由使用者手動重試封面。
+ *
+ * 成功回應不在 Worker 內解析或解碼，直接把 OpenAI 的 body 串流給瀏覽器：約 1.5 MB 的 base64 JSON
+ * 解析會超過 Free 方案每請求 10 ms 的 CPU 時間。只轉送 body，不轉送 OpenAI 的回應 header。
+ * 逾時 signal 在回應 header 送出後仍作用在 body 串流上：逾時就中斷串流，瀏覽器讀 body 失敗而結束為失敗。
+ */
+async function handleCover(request: Request, deps: WorkerDeps): Promise<Response> {
+  if (request.method !== 'POST') return errorResponse('method_not_allowed')
+
+  const apiKey = readKey(request)
+  const story = parseCoverStory(await readJson(request))
+  if (!story || checkApiKey(apiKey)) return errorResponse('invalid_input')
+
+  const signal = deps.timeoutSignal(WORKER_COVER_TIMEOUT_MS)
+  try {
+    const res = await deps.fetch(OPENAI_IMAGES_URL, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify(buildCoverRequest(story)),
+      signal,
+    })
+    if (!res.ok) {
+      const errorBody: unknown = await res.json().catch(() => null)
+      return errorResponse(mapCoverError(res.status, errorBody))
+    }
+    if (!res.body) return errorResponse('upstream_error')
+    return new Response(res.body, {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    })
+  } catch (error) {
+    return errorResponse(isTimeout(error, signal) ? 'timeout' : 'network_error')
+  }
+}
+
 export function createWorker(deps: WorkerDeps) {
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url)
       if (!isSecure(url)) return errorResponse('insecure_request')
       if (url.pathname === STORY_API_PATH) return handleStory(request, env, deps)
-      // 尚未定義的 API（封面由 T4 加入）一律回 404 JSON，避免前端把 index.html 當成 API 回應解析。
+      if (url.pathname === COVER_API_PATH) return handleCover(request, deps)
+      // 其他 /api 路徑一律回 404 JSON，避免前端把 index.html 當成 API 回應解析。
       return errorResponse('not_found')
     },
   } satisfies ExportedHandler<Env>

@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
 import type { Story } from '../../shared/story'
 import type { StoryApiErrorCode } from '../../shared/storyApi'
+import type { CoverApi, GenerateCoverResult } from '../api/coverApi'
 import type { GenerateStoryResult, StoryApi } from '../api/storyApi'
 import { createFakeSpeechEngine, enUS } from '../speech/fakeSpeechEngine'
 import { useNarration } from '../speech/useNarration'
+import { useCoverGeneration } from './useCoverGeneration'
 import { useStoryGeneration } from './useStoryGeneration'
 
 const KEY = 'sk-test-fake0000'
@@ -40,25 +42,51 @@ function fakeNarration() {
   return { engine, narration }
 }
 
+/** 真的 useCoverGeneration 搭配假的封面 client，讓測試能觀察文字流程何時送出封面請求與封面狀態。 */
+function fakeCover() {
+  const pending: Array<(result: GenerateCoverResult) => void> = []
+  const api: CoverApi = {
+    generateCover: vi.fn(
+      () =>
+        new Promise<GenerateCoverResult>((resolve) => {
+          pending.push(resolve)
+        }),
+    ),
+  }
+  const cover = useCoverGeneration(api)
+  // 封面請求在文字回應之後才送出，先等它出現再回應。
+  const respondCover = async (result: GenerateCoverResult) => {
+    await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0))
+    pending.shift()!(result)
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+  return { cover, respondCover, coverCalls: () => vi.mocked(api.generateCover).mock.calls }
+}
+
 function setup() {
   const fake = fakeApi()
   const speech = fakeNarration()
-  const gen = useStoryGeneration(fake.api, speech.narration)
+  const covers = fakeCover()
+  const gen = useStoryGeneration(fake.api, speech.narration, covers.cover)
   gen.form.apiKey = KEY
-  return { ...fake, ...speech, gen }
+  return { ...fake, ...speech, ...covers, gen }
 }
 
-/** 送出並以指定結果完成這次請求。 */
-async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryResult) {
+const COVER_OK: GenerateCoverResult = { ok: true, src: 'data:image/gif;base64,R0lGOD' }
+
+/** 送出並以指定結果完成這次文字請求；文字成功時接著以 cover（預設成功）完成封面請求，故事才會發佈。 */
+async function submitWith(ctx: ReturnType<typeof setup>, result: GenerateStoryResult, cover: GenerateCoverResult = COVER_OK) {
   const done = ctx.gen.submit()
   ctx.respond(result)
+  if (result.ok) await ctx.respondCover(cover)
   await done
 }
 
 describe('useStoryGeneration 初始狀態', () => {
   // 角色與情境預填 Demo 案例方便測試；key 一律不預填（PLAN 3.1）。
   it('角色與情境預填 Demo 案例、頁數預設 4、key 空白，沒有故事且表單展開', () => {
-    const gen = useStoryGeneration(fakeApi().api, fakeNarration().narration)
+    const gen = useStoryGeneration(fakeApi().api, fakeNarration().narration, fakeCover().cover)
 
     expect(gen.form).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 4, apiKey: '' })
     expect(gen.story.value).toBeNull()
@@ -91,6 +119,7 @@ describe('useStoryGeneration 送出', () => {
     expect(ctx.gen.status.value).toBe('generating')
     expect(ctx.calls()[0]?.[0]).toEqual({ character: '恐龍', situation: '第一次上學，有點害怕和媽媽分開', pageCount: 10, apiKey: KEY })
     ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
     await done
   })
 
@@ -126,6 +155,7 @@ describe('useStoryGeneration 送出', () => {
 
     expect(ctx.calls()).toHaveLength(1)
     ctx.respond({ ok: true, story: makeStory('A') })
+    await ctx.respondCover(COVER_OK)
     await first
   })
 
@@ -207,7 +237,8 @@ describe('useStoryGeneration 建立新故事', () => {
   // A 的 p0-s0 高亮會直接落在 B 第一頁第一句上，看起來像 B 的句子在念 A 的內容。
   //
   // 生成 B 期間刻意讓 A 繼續朗讀：B 還可能失敗，此時不該打斷正在讀 A 的使用者。
-  it('A 正在朗讀時，B 生成中仍繼續朗讀，B 文字成功替換時停止朗讀並清除高亮', async () => {
+  // B 的文字成功後還要等封面，這段期間 A 仍是目前的書，也繼續朗讀；封面結束、真正替換時才停止。
+  it('A 正在朗讀時，B 生成中與等封面時仍繼續朗讀，替換成 B 時停止朗讀並清除高亮', async () => {
     const ctx = await withStoryA()
     ctx.narration.toggle('p0-s0', 'A page 1.')
 
@@ -215,6 +246,10 @@ describe('useStoryGeneration 建立新故事', () => {
     expect(ctx.narration.activeId.value).toBe('p0-s0')
     const cancelsBeforeReplace = ctx.engine.cancelCount
     ctx.respond({ ok: true, story: makeStory('B') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(2))
+    expect(ctx.narration.activeId.value).toBe('p0-s0')
+    expect(ctx.engine.cancelCount).toBe(cancelsBeforeReplace)
+    await ctx.respondCover(COVER_OK)
     await done
 
     expect(ctx.gen.story.value).toEqual(makeStory('B'))
@@ -248,5 +283,124 @@ describe('useStoryGeneration 建立新故事', () => {
 
     ctx.gen.closeForm()
     expect(ctx.gen.formOpen.value).toBe(false)
+  })
+})
+
+// 文字與封面的整合（PLAN 3.3、A1、A3–A7）：文字通過驗證後才請求封面，封面請求結束（成功或失敗）
+// 才把文字與封面一起發佈成新書，避免畫面先出現文字、封面晚十幾秒才補上。
+// 文字與封面的 client 都是假的，只能證明請求的時機、次數與狀態，不能證明真實封面的內容或等待時間。
+describe('useStoryGeneration 與封面', () => {
+  it('文字通過驗證後以該故事與送出時的 key 請求一次封面；封面結束前不發佈故事、狀態為 drawing', async () => {
+    const ctx = setup()
+
+    const done = ctx.gen.submit()
+    expect(ctx.coverCalls()).toHaveLength(0)
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(1))
+
+    expect(ctx.coverCalls()[0]).toEqual([makeStory('A'), KEY])
+    expect(ctx.gen.status.value).toBe('drawing')
+    expect(ctx.gen.story.value).toBeNull()
+    expect(ctx.gen.formOpen.value).toBe(true)
+
+    await ctx.respondCover({ ok: true, src: 'data:image/gif;base64,A' })
+    await done
+    expect(ctx.gen.story.value).toEqual(makeStory('A'))
+    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+    expect(ctx.gen.status.value).toBe('idle')
+    expect(ctx.gen.formOpen.value).toBe(false)
+  })
+
+  // A5、PLAN 1：封面失敗不能阻擋已通過驗證的文字；故事照樣發佈，封面顯示失敗並可重試。
+  it('封面失敗時照樣發佈故事，封面為 failed；重試只送封面請求，不送文字請求', async () => {
+    const ctx = setup()
+    await submitWith(ctx, { ok: true, story: makeStory('A') }, { ok: false, error: 'permission_denied' })
+
+    expect(ctx.gen.story.value).toEqual(makeStory('A'))
+    expect(ctx.gen.status.value).toBe('idle')
+    expect(ctx.cover.status.value).toBe('failed')
+    expect(ctx.cover.error.value).toBe('permission_denied')
+
+    ctx.cover.retry()
+    expect(ctx.calls()).toHaveLength(1)
+    expect(ctx.coverCalls()).toEqual([
+      [makeStory('A'), KEY],
+      [makeStory('A'), KEY],
+    ])
+  })
+
+  // A3、A4：文字失敗時連封面都不請求，否則會為不會發佈的故事付費。
+  it.each(['invalid_key', 'invalid_story', 'story_refused', 'timeout'] as const)('文字失敗（%s）時不送封面請求', async (error) => {
+    const ctx = setup()
+
+    await submitWith(ctx, fail(error))
+
+    expect(ctx.coverCalls()).toHaveLength(0)
+    expect(ctx.cover.status.value).toBe('idle')
+  })
+
+  // A7、PLAN 3.3：仍有生成請求進行時不另開新故事。等封面時與重試封面時都要擋，
+  // 否則新舊故事的請求會同時進行，可能重複計費或互相覆蓋。
+  it('等封面時與重試封面時送出新故事都不送文字請求；重試結束後才可以送出', async () => {
+    const ctx = setup()
+    const first = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('A') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(1))
+
+    await ctx.gen.submit()
+    expect(ctx.calls()).toHaveLength(1)
+
+    await ctx.respondCover({ ok: false, error: 'timeout' })
+    await first
+    ctx.cover.retry()
+    expect(ctx.gen.coverBusy.value).toBe(true)
+    await ctx.gen.submit()
+    expect(ctx.calls()).toHaveLength(1)
+
+    await ctx.respondCover({ ok: false, error: 'timeout' })
+    expect(ctx.gen.coverBusy.value).toBe(false)
+    await submitWith(ctx, fail('timeout'))
+    expect(ctx.calls()).toHaveLength(2)
+  })
+
+  // A6：B 文字失敗仍讀 A 與 A 的封面；B 等封面期間 A 的封面也要留著；B 發佈時換成 B 的封面，
+  // B 封面失敗也不顯示 A 的封面。
+  it('已有 A 與 A 的封面：B 失敗或等封面時保留 A 的封面；B 發佈後只顯示 B 的封面結果', async () => {
+    const ctx = setup()
+    await submitWith(ctx, { ok: true, story: makeStory('A') }, { ok: true, src: 'data:image/gif;base64,A' })
+
+    await submitWith(ctx, fail('rate_limited'))
+    expect(ctx.gen.story.value).toEqual(makeStory('A'))
+    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+    expect(ctx.coverCalls()).toHaveLength(1)
+
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('B') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(2))
+    expect(ctx.gen.story.value).toEqual(makeStory('A'))
+    expect(ctx.cover.src.value).toBe('data:image/gif;base64,A')
+
+    await ctx.respondCover({ ok: false, error: 'cover_refused' })
+    await done
+    expect(ctx.gen.story.value).toEqual(makeStory('B'))
+    expect(ctx.cover.src.value).toBeNull()
+    expect(ctx.cover.status.value).toBe('failed')
+    expect(ctx.coverCalls().at(-1)).toEqual([makeStory('B'), KEY])
+  })
+
+  // 等封面時表單仍展開、看得到進度，不能收起（與文字生成中相同）。
+  it('等封面時不能收起表單', async () => {
+    const ctx = setup()
+    await submitWith(ctx, { ok: true, story: makeStory('A') })
+    ctx.gen.openForm()
+
+    const done = ctx.gen.submit()
+    ctx.respond({ ok: true, story: makeStory('B') })
+    await vi.waitFor(() => expect(ctx.coverCalls()).toHaveLength(2))
+    ctx.gen.closeForm()
+    expect(ctx.gen.formOpen.value).toBe(true)
+
+    await ctx.respondCover(COVER_OK)
+    await done
   })
 })

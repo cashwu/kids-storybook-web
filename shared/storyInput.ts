@@ -36,6 +36,13 @@ function checkText(value: string, max: number): StoryInputError | null {
   return length > max ? 'too_long' : null
 }
 
+/** key 的檢查規則，故事文字與封面 API 共用；不修剪的原因見 validateStoryInput。 */
+export function checkApiKey(apiKey: string): StoryInputError | null {
+  if (apiKey === '') return 'required'
+  if (/\s/.test(apiKey)) return 'has_whitespace'
+  return codePointLength(apiKey) > API_KEY_MAX ? 'too_long' : null
+}
+
 /**
  * 角色與情境去除頭尾空白後檢查必填與上限；key 不修剪，含任何空白就不合格。
  * key 不修剪是刻意的：貼上時夾帶的換行或空白若被悄悄去掉，使用者不知道自己貼的內容有誤，
@@ -54,9 +61,8 @@ export function validateStoryInput(input: StoryInput): StoryInputResult {
   const situationError = checkText(situation, SITUATION_MAX)
   if (situationError) errors.situation = situationError
 
-  if (apiKey === '') errors.apiKey = 'required'
-  else if (/\s/.test(apiKey)) errors.apiKey = 'has_whitespace'
-  else if (codePointLength(apiKey) > API_KEY_MAX) errors.apiKey = 'too_long'
+  const apiKeyError = checkApiKey(apiKey)
+  if (apiKeyError) errors.apiKey = apiKeyError
 
   const { pageCount } = input
   if (typeof pageCount !== 'number' || Number.isNaN(pageCount)) errors.pageCount = 'required'

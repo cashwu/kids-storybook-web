@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue'
+import type { CoverGeneration } from '../generation/useCoverGeneration'
 import { useStoryReader } from '../reader/useStoryReader'
+import StoryCover from './StoryCover.vue'
 import type { Narration } from '../speech/useNarration'
 import type { Story } from '../../shared/story'
 
 const props = defineProps<{
   story: Story
   narration: Narration
+  cover: CoverGeneration
 }>()
 
 const reader = useStoryReader(toRef(props, 'story'), props.narration)
@@ -38,10 +41,8 @@ function playLabel(id: string) {
 <template>
   <section class="card reader">
     <div class="book-head">
-      <div class="cover placeholder" role="img" aria-label="封面預留區">
-        <span class="art" aria-hidden="true">📖</span>
-        <span class="tag">封面預留區</span>
-      </div>
+      <!-- 封面未就緒或失敗時，下方文字與朗讀照常可用（PLAN 3.3、A5）。 -->
+      <StoryCover :cover="cover" :story="story" />
       <div class="titles">
         <h1 lang="en">{{ story.title.en }}</h1>
         <p class="zh">{{ story.title.zh }}</p>
