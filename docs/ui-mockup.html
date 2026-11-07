@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>雙語有聲故事書 · 畫面草稿</title>
+<style>
+/* Catppuccin Latte：https://catppuccin.com/palette/ */
+:root{
+  --rosewater:#dc8a78;--flamingo:#dd7878;--pink:#ea76cb;--mauve:#8839ef;--red:#d20f39;--maroon:#e64553;
+  --peach:#fe640b;--yellow:#df8e1d;--green:#40a02b;--teal:#179299;--sky:#04a5e5;--sapphire:#209fb5;
+  --blue:#1e66f5;--lavender:#7287fd;--text:#4c4f69;--subtext1:#5c5f77;--subtext0:#6c6f85;
+  --overlay2:#7c7f93;--overlay1:#8c8fa1;--overlay0:#9ca0b0;--surface2:#acb0be;--surface1:#bcc0cc;
+  --surface0:#ccd0da;--base:#eff1f5;--mantle:#e6e9ef;--crust:#dce0e8;
+  --tint-mauve:color-mix(in srgb,var(--mauve) 12%,var(--base));
+  --tint-red:color-mix(in srgb,var(--red) 10%,var(--base));
+  --tint-yellow:color-mix(in srgb,var(--yellow) 16%,var(--base));
+  --tint-blue:color-mix(in srgb,var(--blue) 10%,var(--base));
+  --tint-lav:color-mix(in srgb,var(--lavender) 16%,var(--base));
+  --r:18px;
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--text);font:15px/1.6 system-ui,-apple-system,"PingFang TC","Noto Sans TC",sans-serif}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+:focus-visible{outline:3px solid var(--lavender);outline-offset:2px}
+
+/* ---------- 草稿控制列（不是產品畫面） ---------- */
+.ctrl{position:sticky;top:0;z-index:20;background:var(--text);color:var(--base);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;border-radius:12px}
+.ctrl b{font-size:12.5px;opacity:.75;margin-right:2px}
+.ctrl .grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ctrl button{border:1px solid #ffffff40;background:transparent;color:var(--base);border-radius:999px;padding:3px 10px;font-size:12.5px}
+.ctrl button.on{background:var(--base);color:var(--text)}
+.note{margin:12px auto 0;max-width:1180px;padding:10px 14px;background:var(--tint-yellow);border:1px dashed var(--yellow);border-radius:12px;font-size:13px;color:var(--subtext1)}
+.stage{padding:16px 0 30px;display:flex;justify-content:center}
+.frame{position:relative;width:100%;max-width:1180px;background:var(--mantle);border-radius:22px;box-shadow:0 10px 40px #4c4f6922;overflow:hidden;container-type:inline-size;transition:max-width .25s}
+.frame.mobile{max-width:390px;border:10px solid var(--text);border-radius:38px}
+
+/* ---------- 產品畫面 ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 24px;border-bottom:1px solid var(--crust);background:var(--base)}
+.brand{display:flex;gap:10px;align-items:center;font-weight:800;font-size:18px}
+.brand i{font-style:normal;font-size:22px}
+.top small{color:var(--subtext0)}
+.layout{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:20px 24px 28px;align-items:start}
+.layout.solo{grid-template-columns:1fr;max-width:880px;margin:0 auto}
+@container (max-width:760px){
+  .layout,.layout.solo{grid-template-columns:1fr;padding:12px;gap:12px}
+  .top{padding:12px 14px}
+  .top small{display:none}
+}
+.card{background:var(--base);border:1px solid var(--crust);border-radius:var(--r);padding:20px}
+@container (max-width:760px){.card{padding:16px}}
+.form-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+h2{font-size:18px;margin:0 0 4px}
+.sub{color:var(--subtext0);font-size:13px;margin:0 0 16px}
+.link{border:0;background:none;color:var(--mauve);font-size:13px;padding:2px 0;white-space:nowrap}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:650;font-size:14px;margin-bottom:6px}
+.field .err{font-size:12.5px;color:var(--red);margin-top:4px;display:none}
+.field.bad .err{display:block}
+.field.bad input,.field.bad textarea{border-color:var(--red);background:var(--tint-red)}
+input,textarea{width:100%;border:1px solid var(--surface0);border-radius:10px;padding:10px 12px;background:#fff}
+input:disabled,textarea:disabled{background:var(--mantle);color:var(--overlay1)}
+input::placeholder,textarea::placeholder{color:var(--overlay0)}
+textarea{min-height:84px;resize:vertical}
+.keybox{background:var(--mantle);border-radius:14px;padding:14px;margin:18px 0 14px}
+.keybox .field{margin-bottom:8px}
+.privacy{font-size:12.5px;color:var(--subtext1);margin:0;padding-left:18px}
+.privacy li{margin:2px 0}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;width:100%;background:var(--mauve);color:var(--base);display:flex;gap:8px;justify-content:center;align-items:center}
+.btn:disabled{background:var(--surface1);color:var(--subtext0)}
+.btn.ghost{background:var(--base);border:1px solid var(--surface0);color:var(--text);width:auto;font-weight:600;padding:8px 12px}
+.btn.ghost:disabled{color:var(--overlay0);background:var(--base)}
+.btn.small{width:auto;padding:8px 14px;font-size:14px}
+.status{margin-top:12px;border-radius:12px;padding:12px 14px;font-size:13.5px;display:flex;gap:10px}
+.status .ic{font-size:17px;line-height:1.25}
+.status.info{background:var(--tint-blue)}
+.status.info b{color:var(--blue)}
+.status.err{background:var(--tint-red)}
+.status.err b{color:var(--red)}
+.status.warn{background:var(--tint-yellow)}
+.status p{margin:2px 0 0;color:var(--subtext1)}
+.spin{width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp 1s linear infinite;flex-shrink:0;margin-top:2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* 收合後的「建立新故事」列 */
+.newbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 16px}
+.newbar .cur{font-size:13px;color:var(--subtext0);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.newbar .cur b{color:var(--text)}
+.newbar .hint{font-size:12px;color:var(--subtext0);margin-top:2px}
+
+/* 閱讀區 */
+.reader{padding:0;overflow:hidden}
+.empty{padding:56px 28px;text-align:center;color:var(--subtext0)}
+@container (max-width:760px){.empty{padding:28px 18px}}
+.empty .big{font-size:60px}
+.empty h3{color:var(--text);margin:8px 0 6px}
+.steps{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.steps span{background:var(--mantle);border-radius:999px;padding:5px 12px;font-size:12.5px;color:var(--subtext1)}
+.banner{margin:16px 20px 0}
+@container (max-width:760px){.banner{margin:12px 12px 0}}
+.book-head{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:20px;border-bottom:1px solid var(--crust);align-items:center}
+@container (max-width:760px){.book-head{grid-template-columns:104px 1fr;gap:14px;padding:14px}}
+.cover{aspect-ratio:1/1;border-radius:14px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+.cover.ok{background:radial-gradient(circle at 74% 24%,var(--yellow) 0 11%,transparent 12%),radial-gradient(ellipse at 50% 118%,var(--green) 0 44%,transparent 45%),linear-gradient(170deg,var(--sky),var(--sapphire) 70%)}
+.cover.ok .art{font-size:72px;filter:drop-shadow(0 6px 6px #0003);margin-top:14px}
+.cover.ok .tagai{position:absolute;bottom:7px;right:7px;background:#4c4f69bb;color:var(--base);font-size:10.5px;padding:1px 7px;border-radius:999px}
+.cover.load{background:repeating-linear-gradient(45deg,var(--mantle) 0 12px,var(--crust) 12px 24px);color:var(--subtext0);gap:6px;font-size:13px}
+.cover.fail{background:var(--tint-red);color:var(--red);gap:6px;font-size:13px;padding:10px;border:1px dashed color-mix(in srgb,var(--red) 40%,var(--base))}
+@container (max-width:760px){
+  .cover.ok .art{font-size:40px;margin-top:6px}
+  .cover.ok .tagai{font-size:9px;padding:0 5px;bottom:4px;right:4px}
+  .cover.fail .ftxt,.cover.load .ltxt{font-size:11px}
+  .cover.fail .fdesc,.cover.fail .ficon{display:none}
+}
+.titles .eyebrow{font-size:12px;letter-spacing:.08em;color:var(--mauve);font-weight:700}
+.titles h1{font-family:Georgia,"Times New Roman",serif;font-size:30px;line-height:1.2;margin:4px 0 2px}
+.titles .zh{font-size:17px;color:var(--subtext1);margin:0 0 10px}
+@container (max-width:760px){
+  .titles h1{font-size:22px}
+  .titles .zh{font-size:15px;margin-bottom:6px}
+}
+.chip{display:inline-flex;gap:4px;align-items:center;font-size:12px;background:var(--tint-blue);color:var(--blue);border-radius:999px;padding:2px 10px}
+.progress{margin-top:10px;font-size:12.5px;color:var(--subtext0)}
+.bar{height:6px;border-radius:9px;background:var(--crust);overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--mauve);border-radius:9px}
+
+.langrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px 0;flex-wrap:wrap}
+@container (max-width:760px){.langrow{padding:12px 12px 0}}
+.seg{display:inline-flex;background:var(--mantle);border:1px solid var(--crust);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:5px 14px;font-size:13.5px;font-weight:650;color:var(--subtext0)}
+.seg button.on{background:var(--base);color:var(--mauve);box-shadow:0 1px 3px #4c4f6922}
+.langrow small{color:var(--subtext0);font-size:12px}
+
+.page{padding:14px 20px 6px}
+@container (max-width:760px){.page{padding:12px}}
+.page-label{font-size:13px;color:var(--subtext0);margin-bottom:8px}
+.sent{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--crust);border-radius:16px;padding:16px;margin-bottom:12px;background:#fff;transition:.15s}
+@container (max-width:760px){.sent{padding:12px;gap:12px}}
+.sent.playing{border-color:var(--lavender);background:var(--tint-lav);box-shadow:0 0 0 3px color-mix(in srgb,var(--lavender) 25%,transparent)}
+.sent .en{font-family:Georgia,"Times New Roman",serif;font-size:23px;line-height:1.35}
+.sent .zh{color:var(--subtext0);margin-top:4px}
+.sent.zh-mode .en{font-size:18px;color:var(--subtext1)}
+.sent.zh-mode .zh{font-size:19px;color:var(--text);font-weight:500}
+@container (max-width:760px){.sent .en{font-size:19px}.sent.zh-mode .zh{font-size:17px}.sent.zh-mode .en{font-size:16px}}
+.sent .meta{font-size:12px;margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.play{flex-shrink:0;width:50px;height:50px;border-radius:50%;border:0;background:var(--mauve);color:var(--base);font-size:17px;display:flex;align-items:center;justify-content:center}
+@container (max-width:760px){.play{width:44px;height:44px;font-size:15px}}
+.play.wait{background:var(--crust);color:var(--overlay1)}
+.play.fail{background:var(--tint-red);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 30%,var(--base))}
+.play.pause{background:var(--lavender)}
+.st{display:inline-flex;gap:5px;align-items:center}
+.st.wait{color:var(--subtext0)}
+.st.fail{color:var(--red)}
+.st.ok{color:var(--lavender);font-weight:600}
+.mini-btn{border:1px solid currentColor;background:var(--base);border-radius:999px;padding:2px 10px;font-size:12px;color:inherit}
+.pager{display:flex;align-items:center;justify-content:space-between;padding:4px 20px 18px;gap:8px}
+@container (max-width:760px){.pager{padding:4px 12px 14px}.pager .btn.ghost{padding:10px 12px}.pager .lbl{display:none}}
+.dots{display:flex;gap:6px}
+.dots button{width:32px;height:32px;border-radius:50%;border:1px solid var(--surface0);background:var(--base);font-size:12.5px;font-weight:650}
+.dots button.on{background:var(--mauve);color:var(--base);border-color:var(--mauve)}
+.foot{padding:12px 20px 16px;font-size:12px;color:var(--subtext0);border-top:1px solid var(--crust)}
+@container (max-width:760px){.foot{padding:10px 12px 14px}}
+
+/* 重試確認 */
+.mask{position:absolute;inset:0;background:#4c4f6999;display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+.mask.show{display:flex}
+.dialog{background:var(--base);border-radius:18px;padding:22px;max-width:380px;width:100%;box-shadow:0 20px 50px #4c4f6955}
+.dialog h3{margin:0 0 8px}
+.dialog p{margin:0 0 10px;font-size:14px;color:var(--subtext1)}
+.dialog .quote{background:var(--mantle);border-radius:10px;padding:10px 12px;font-family:Georgia,serif;font-size:15px;margin-bottom:12px}
+.dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.dialog .row .btn{width:auto}
+</style>
+</head>
+<body>
+
+<div class="ctrl">
+  <div class="grp"><b>狀態</b><span id="tabs" class="grp"></span></div>
+  <div class="grp"><b>寬度</b>
+    <button data-w="desk" class="on">桌面</button>
+    <button data-w="mobile">手機 390px</button>
+  </div>
+  <div class="grp"><b>加分項</b><button id="bonusBtn">中文朗讀：關</button></div>
+</div>
+<div class="note" id="note"></div>
+
+<div class="stage">
+<div class="frame" id="frame">
+  <header class="top">
+    <div class="brand"><i>📖</i>雙語有聲故事書</div>
+    <small>把生活小事變成中英對照的故事</small>
+  </header>
+  <div class="layout" id="layout"></div>
+
+  <div class="mask" id="mask">
+    <div class="dialog" role="dialog" aria-labelledby="dlgT">
+      <h3 id="dlgT"></h3>
+      <div class="quote" id="dlgQ"></div>
+      <p>上一次請求失敗（逾時）。逾時不代表 OpenAI 沒有處理，<b>重試可能會再次計費</b>。</p>
+      <p id="dlgScope"></p>
+      <div class="row">
+        <button class="btn ghost" onclick="closeDlg()">取消</button>
+        <button class="btn" onclick="closeDlg()">重新產生</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const story = {
+  en:"Dino's First Day", zh:"小恐龍上學去", topic:"恐龍・第一次上學",
+  pages:[
+    [["Dino has a new backpack.","小恐龍有一個新書包。"],["Today is his first day of school.","今天是他第一天上學。"]],
+    [["Dino feels a little scared.","小恐龍覺得有一點害怕。"],["He holds Mom's hand tight.","他緊緊牽著媽媽的手。"]],
+    [["A girl says, “Hi! Do you like blocks?”","一個女孩說：「嗨！你喜歡積木嗎？」"],["Dino smiles and says, “Yes!”","小恐龍笑著說：「喜歡！」"]],
+    [["At home, Dino says, “School is fun!”","回到家，小恐龍說：「上學好好玩！」"]]
+  ]
+};
+const STATES = {
+  empty:   {label:"1 首次進入", note:"<b>首次進入</b>：沒有年齡欄位，故事固定以 4–5 歲為對象。角色與情境預填 Demo 案例（可修改），只需貼上 key 就能測試；key 一律不預填。三個欄位都必填；資料流與費用說明固定在 key 旁邊。手機上表單在上、說明在下。"},
+  invalid: {label:"2 欄位錯誤", note:"<b>欄位錯誤（A2）</b>：使用者把預填內容清掉、只剩空白，或 key 沒填時，不送出請求，在欄位下方標出要修正的地方。"},
+  genText: {label:"3 正在寫故事", note:"<b>生成文字中</b>：表單鎖定、按鈕不能再按（A7）。不承諾等待秒數；提醒重新整理會清掉 key。文字通過驗證前，不送出封面和語音請求。"},
+  textFail:{label:"4 文字失敗", note:"<b>文字失敗（A3／A4）</b>：key 無效或格式不合都算文字失敗；保留輸入、不請求素材，錯誤訊息不顯示 key。可按「草稿：切換錯誤類型」看另一種訊息。表單不收合，因為還沒有成功的故事。"},
+  assets:  {label:"5 成功・素材生成中", note:"<b>文字成功 → 表單收合</b>：閱讀區占滿主要版面，上方只留一列「建立新故事」。素材還在產生時這顆按鈕不能按。封面與每句語音各自顯示狀態，未就緒的語音不能播（A8）。手機上封面縮成小圖放在標題旁，讓第一句盡量出現在第一屏。"},
+  playing: {label:"6 播放中", note:"<b>播放中（A8）</b>：正在播的句子會高亮，按鈕變成暫停；點另一句會停掉前一句，切頁會停止並清除高亮。可以直接點播放鈕或頁碼試試。"},
+  partial: {label:"7 部分失敗", note:"<b>部分失敗（A5）</b>：封面與第 2 頁第 1 句語音失敗。整本書都能讀，其他語音照常播放；每個失敗項目各有自己的「重試」。素材都結束（成功或失敗）後，「建立新故事」就可以按了。"},
+  retry:   {label:"8 重試確認", note:"<b>手動重試確認（A7）</b>：重試前提醒可能再次計費，並說明只會重送這一項。不會自動重試。"},
+  expand:  {label:"9 展開建立新故事", note:"<b>展開表單</b>：點「建立新故事」後，桌面上恢復左右兩欄，舊故事照常在右邊閱讀；手機上表單展開在故事上方，可以「收起」。上次的輸入與 key 保留在當頁記憶體，方便修改。"},
+  rebuild: {label:"10 重建中（舊故事仍在）", note:"<b>建立新故事 B（A6）</b>：舊故事 A 仍可閱讀與播放，B 的文字成功才整本替換；B 失敗的話 A 不變。生成中不能再開另一本。B 換上後只會顯示 B 自己的封面與語音，表單也會再次收合。"},
+  zh:      {label:"11 中文朗讀（加分項）", note:"<b>中文朗讀（加分項，T8）</b>：文字成功後中英語音一起產生。閱讀區上方切換「英文／中文」，切換時停止播放並清除高亮；選中文時中文字放大、英文縮小（排版示意，未確認）。兩種語言的語音各自顯示狀態、各自重試。核心版沒有這列切換。"}
+};
+let state="empty", page=0, playing=null, failKind="key", lang="en", bonus=false;
+const $=s=>document.querySelector(s);
+
+const tabs=$("#tabs");
+Object.entries(STATES).forEach(([k,v])=>{
+  const b=document.createElement("button");b.textContent=v.label;b.dataset.s=k;
+  b.onclick=()=>{
+    state=k; page=(k==="partial"||k==="retry")?1:0; playing=null; lang="en";
+    if(k==="playing") playing="0-1";
+    if(k==="zh"){bonus=true;lang="zh";playing="0-0"}
+    render();
+  };
+  tabs.appendChild(b);
+});
+document.querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("[data-w]").forEach(x=>x.classList.toggle("on",x===b));
+  $("#frame").classList.toggle("mobile",b.dataset.w==="mobile");
+});
+$("#bonusBtn").onclick=()=>{bonus=!bonus;if(!bonus){lang="en";if(state==="zh")state="playing"}playing=null;render()};
+
+const hasStory=()=>["assets","playing","partial","retry","expand","rebuild","zh"].includes(state);
+const formOpen=()=>!hasStory()||state==="expand"||state==="rebuild";
+const locked=()=>state==="genText"||state==="rebuild";
+
+function audioState(p,i,l){
+  const id=p+"-"+i;
+  if(state==="assets"){ if(l==="en") return p===0?"ok":"wait"; return id==="0-0"?"ok":"wait"; }
+  if((state==="partial"||state==="retry")&&l==="en"&&id==="1-0") return "fail";
+  if(state==="zh"&&l==="zh"&&id==="2-1") return "fail";
+  return "ok";
+}
+function coverState(){
+  if(state==="assets") return "load";
+  if(state==="partial"||state==="retry") return "fail";
+  return "ok";
+}
+
+/* ---------- 表單 ---------- */
+function formHTML(){
+  const lk=locked(), again=hasStory();
+  // 第一版角色與情境預填 Demo 案例方便測試；key 永遠不預填，後續狀態的 sk-xxxx 只是模擬使用者已輸入
+  const hasKey=state!=="empty"&&state!=="invalid";
+  const ch=state==="invalid"?"   ":"恐龍";
+  const sit=state==="rebuild"?"明天要去看牙醫，很怕痛":state==="invalid"?"":"第一次上學，有點害怕和媽媽分開";
+  const bad=state==="invalid"?"bad":"";
+  let btn;
+  if(lk) btn='<span class="spin"></span> 正在寫故事…';
+  else if(state==="textFail") btn="↻ 再試一次";
+  else if(again) btn="✨ 產生新故事";
+  else btn="✨ 產生故事";
+  let st="";
+  if(lk) st=`<div class="status info"><span class="spin" style="color:var(--blue)"></span><div><b>正在寫故事文字</b><p>文字檢查通過後才會開始畫封面和錄語音。請不要重新整理，否則 key 與故事都會清除。</p></div></div>`;
+  else if(state==="invalid") st=`<div class="status err"><span class="ic">✋</span><div><b>有 3 個欄位需要修正</b><p>還沒有送出任何請求。</p></div></div>`;
+  else if(state==="textFail"){
+    const msg=failKind==="key"
+      ?`<b>故事沒有產生成功：API key 無效或沒有權限。</b><p>請確認 key 是否正確、帳戶是否能使用這項服務，修改後按「再試一次」。</p>`
+      :`<b>這次產生的故事格式不完整，沒有採用。</b><p>例如頁數不是 4 頁，或有句子缺少中文翻譯。按「再試一次」會重新送出請求，可能會再次計費。</p>`;
+    st=`<div class="status err"><span class="ic">⚠️</span><div>${msg}<p style="margin-top:8px">你填的內容都還在，也沒有產生封面或語音。</p>
+      <p style="margin-top:6px"><button class="mini-btn" onclick="failKind=failKind==='key'?'format':'key';render()">草稿：切換錯誤類型</button></p></div></div>`;
+  }
+  return `<section class="card">
+    <div class="form-head">
+      <div><h2>${again?"建立新故事":"寫一本新故事"}</h2></div>
+      ${again&&!lk?`<button class="link" onclick="state='playing';playing=null;render()">收起 ▲</button>`:""}
+    </div>
+    <p class="sub">${again?"新故事的文字成功後，才會取代目前這本；失敗的話，目前這本不受影響。":"告訴我們孩子喜歡的角色，和最近遇到的一件事。"}</p>
+    <div class="field ${bad}">
+      <label for="char">喜歡的角色</label>
+      <input id="char" value="${ch}" ${lk?"disabled":""} placeholder="例如：恐龍、小兔子、消防車">
+      <div class="err">請填寫孩子喜歡的角色。</div>
+    </div>
+    <div class="field ${bad}">
+      <label for="sit">生活情境</label>
+      <textarea id="sit" ${lk?"disabled":""} placeholder="例如：下週第一次上學，有點害怕和媽媽分開">${sit}</textarea>
+      <div class="err">請描述想放進故事的生活情境。</div>
+    </div>
+    <div class="keybox">
+      <div class="field ${bad}">
+        <label for="key">你的 OpenAI API key</label>
+        <input id="key" type="password" autocomplete="off" value="${hasKey?"sk-xxxxxxxxxxxxxxxxxxxx":""}" ${lk?"disabled":""} placeholder="sk-…">
+        <div class="err">請輸入 API key。</div>
+      </div>
+      <ul class="privacy">
+        <li>key 只放在這個分頁的記憶體，<b>重新整理就會消失</b>，故事也會一起消失。</li>
+        <li>key 與故事需求會經過本 app 的後端送往 OpenAI；本 app 不保存、不記錄 key。</li>
+        <li>產生文字、封面與語音的費用都由這把 key 負擔。</li>
+      </ul>
+    </div>
+    <button class="btn" ${lk?"disabled":""}>${btn}</button>
+    ${st}
+  </section>`;
+}
+
+function newbarHTML(){
+  const busy=state==="assets";
+  return `<section class="card newbar">
+    <div style="min-width:0">
+      <div class="cur">目前故事：<b>${story.topic}</b></div>
+      ${busy?`<div class="hint">封面與語音產生完才能建立新故事</div>`:""}
+    </div>
+    <button class="btn small" ${busy?"disabled":""} onclick="state='expand';playing=null;render()">＋ 建立新故事</button>
+  </section>`;
+}
+
+/* ---------- 閱讀 ---------- */
+function sentHTML(p,i,s){
+  const id=p+"-"+i, a=audioState(p,i,lang), on=playing===id;
+  const L=lang==="zh"?"中文":"英文";
+  let btn,meta;
+  if(a==="wait"){btn=`<button class="play wait" disabled aria-label="${L}語音準備中">…</button>`;meta=`<span class="st wait"><span class="spin" style="width:11px;height:11px"></span>${L}語音產生中</span>`}
+  else if(a==="fail"){btn=`<button class="play fail" disabled aria-label="${L}語音失敗">!</button>`;meta=`<span class="st fail">${L}語音產生失敗（逾時）</span><button class="mini-btn" style="color:var(--red)" onclick="openDlg('sent','${id}')">重試這句</button>`}
+  else{btn=`<button class="play ${on?"pause":""}" onclick="toggle('${id}')" aria-label="${on?"暫停":"播放"+L}">${on?"❚❚":"▶"}</button>`;meta=on?`<span class="st ok">● 正在朗讀${bonus?L:""}</span>`:""}
+  return `<div class="sent ${on?"playing":""} ${lang==="zh"?"zh-mode":""}">${btn}<div><div class="en">${s[0]}</div><div class="zh">${s[1]}</div>${meta?`<div class="meta">${meta}</div>`:""}</div></div>`;
+}
+
+function readerHTML(){
+  if(!hasStory()){
+    const gen=state==="genText";
+    return `<section class="card reader"><div class="empty">
+      <div class="big">${gen?"✍️":"🦕"}</div>
+      <h3>${gen?"故事正在寫…":"故事會出現在這裡"}</h3>
+      <div>${gen?"先完成並檢查故事文字，再畫封面、錄朗讀。":"一本 4 頁的中英對照故事，附一張 AI 封面，每句都能點來聽。"}</div>
+      <div class="steps"><span>① 寫故事文字</span><span>② 檢查頁數與翻譯</span><span>③ 畫封面＋錄語音</span><span>④ 一起讀</span></div>
+    </div></section>`;
+  }
+  const c=coverState();
+  const cover = c==="ok"
+    ? `<div class="cover ok"><div class="art">🦕🎒</div><span class="tagai">AI 封面</span></div>`
+    : c==="load"
+    ? `<div class="cover load"><span class="spin"></span><span class="ltxt">封面繪製中</span></div>`
+    : `<div class="cover fail"><div class="ficon" style="font-size:26px">🖼️</div><b class="ftxt">封面失敗</b><div class="fdesc">不影響閱讀故事</div><button class="mini-btn" onclick="openDlg('cover')">重試</button></div>`;
+
+  const flat=story.pages.flatMap((pg,p)=>pg.map((_,i)=>[p,i]));
+  const count=(l,k)=>flat.filter(([p,i])=>audioState(p,i,l)===k).length;
+  const prog=l=>{const ok=count(l,"ok"),f=count(l,"fail"),w=count(l,"wait");
+    return `${l==="zh"?"中文":"英文"}語音 ${ok}/${flat.length}${f?`・${f} 句失敗`:""}${w?"・產生中":""}`};
+  const okEn=count("en","ok");
+
+  const failed=state==="partial"||state==="retry";
+  const banner = state==="rebuild"
+    ? `<div class="banner status info"><span class="spin" style="color:var(--blue)"></span><div><b>正在寫新故事（恐龍・看牙醫）</b><p>新故事文字完成並通過檢查後，會整本取代這本；在那之前可以繼續讀這本。</p></div></div>`
+    : failed
+    ? `<div class="banner status warn"><span class="ic">⚠️</span><div><b>有 2 項沒有產生成功</b><p>封面、第 2 頁第 1 句語音。故事都可以讀，其他語音照常播放，需要的話可以個別重試。</p></div></div>`
+    : "";
+
+  const langrow = bonus
+    ? `<div class="langrow"><div class="seg" role="group" aria-label="朗讀語言">
+         <button class="${lang==="en"?"on":""}" onclick="setLang('en')">英文</button>
+         <button class="${lang==="zh"?"on":""}" onclick="setLang('zh')">中文</button></div>
+       <small>切換後，每句的播放鈕會改播這個語言</small></div>`
+    : "";
+
+  return `<section class="card reader">${banner}
+    <div class="book-head">
+      ${cover}
+      <div class="titles">
+        <div class="eyebrow">${story.topic}</div>
+        <h1>${story.en}</h1>
+        <p class="zh">${story.zh}</p>
+        <span class="chip">🔊 朗讀為 AI 生成語音</span>
+        <div class="progress">${prog("en")}${bonus?`　${prog("zh")}`:""}
+          <div class="bar"><i style="width:${okEn/flat.length*100}%"></i></div></div>
+      </div>
+    </div>
+    ${langrow}
+    <div class="page">
+      <div class="page-label">第 ${page+1} 頁，共 ${story.pages.length} 頁</div>
+      ${story.pages[page].map((s,i)=>sentHTML(page,i,s)).join("")}
+    </div>
+    <div class="pager">
+      <button class="btn ghost" ${page===0?"disabled":""} onclick="go(${page-1})" aria-label="上一頁">←<span class="lbl"> 上一頁</span></button>
+      <div class="dots">${story.pages.map((_,i)=>`<button class="${i===page?"on":""}" onclick="go(${i})" aria-label="第 ${i+1} 頁">${i+1}</button>`).join("")}</div>
+      <button class="btn ghost" ${page===story.pages.length-1?"disabled":""} onclick="go(${page+1})" aria-label="下一頁"><span class="lbl">下一頁 </span>→</button>
+    </div>
+    <div class="foot">故事與封面由 AI 產生，請陪孩子一起閱讀。重新整理頁面會清除這本故事與 API key。</div>
+  </section>`;
+}
+
+function go(p){page=p;playing=null;render()}                 // 切頁：停止播放並清除高亮
+function toggle(id){playing=playing===id?null:id;render()}   // 同時只播一句
+function setLang(l){lang=l;playing=null;render()}            // 切換語言：停止播放
+function openDlg(kind,id){
+  if(kind==="cover"){
+    $("#dlgT").textContent="重新產生封面？";
+    $("#dlgQ").textContent=story.en+"　"+story.zh;
+    $("#dlgScope").textContent="只會重新產生封面；故事文字與已完成的語音不受影響。";
+  }else{
+    const [p,i]=(id||"1-0").split("-").map(Number), s=story.pages[p][i], L=lang==="zh"?"中文":"英文";
+    $("#dlgT").textContent=`重新產生這句${L}語音？`;
+    $("#dlgQ").textContent=lang==="zh"?s[1]:s[0];
+    $("#dlgScope").textContent=`只會重新產生這一句的${L}語音；故事文字、封面與其他已完成的語音不受影響。`;
+  }
+  $("#mask").classList.add("show");
+}
+function closeDlg(){$("#mask").classList.remove("show")}
+
+function render(){
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.s===state));
+  $("#bonusBtn").textContent="中文朗讀："+(bonus?"開":"關");
+  $("#bonusBtn").classList.toggle("on",bonus);
+  $("#note").innerHTML="📝 "+STATES[state].note;
+  const lay=$("#layout");
+  if(formOpen()){ lay.className="layout"; lay.innerHTML=formHTML()+readerHTML(); }
+  else{ lay.className="layout solo"; lay.innerHTML=newbarHTML()+readerHTML(); }
+  if(state==="retry") openDlg("sent","1-0"); else closeDlg();
+}
+render();
+</script>
+</body>
+</html>
