@@ -1,5 +1,5 @@
 import { computed, readonly, ref, type ComputedRef, type Ref } from 'vue'
-import type { Story, StoryPage } from '../story/types'
+import type { Story, StoryPage } from '../../shared/story'
 
 export interface StoryReader {
   pageIndex: Readonly<Ref<number>>

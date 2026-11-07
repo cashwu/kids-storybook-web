@@ -34,6 +34,7 @@ DevDay/
 ├── README.md          # 公開的專案介紹
 ├── src/               # Vue 3 前端（Static Assets 來源）
 ├── server/            # Cloudflare Worker：/api/* 與其測試
+├── shared/            # 前端與 Worker 共用的故事格式、輸入驗證與 API 契約
 ├── public/            # 原樣複製到 Static Assets 的靜態檔
 ├── （根目錄設定檔）   # Vite、Vitest、Wrangler、TypeScript 設定與前端入口 index.html
 └── docs/

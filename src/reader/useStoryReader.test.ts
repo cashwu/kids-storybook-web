@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { effectScope, ref } from 'vue'
 import { createFakeSpeechEngine, enUS } from '../speech/fakeSpeechEngine'
 import { useNarration } from '../speech/useNarration'
-import type { Story } from '../story/types'
+import type { Story } from '../../shared/story'
 import { useStoryReader } from './useStoryReader'
 
 const story: Story = {

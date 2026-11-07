@@ -2,13 +2,11 @@
 import { computed, toRef } from 'vue'
 import { useStoryReader } from '../reader/useStoryReader'
 import type { Narration } from '../speech/useNarration'
-import type { Story } from '../story/types'
+import type { Story } from '../../shared/story'
 
 const props = defineProps<{
   story: Story
   narration: Narration
-  /** 顯示的是固定範例資料（T1），不是生成結果。 */
-  sample?: boolean
 }>()
 
 const reader = useStoryReader(toRef(props, 'story'), props.narration)
@@ -26,7 +24,8 @@ const unavailableMessage = computed(() => {
   }
 })
 
-// 句子 id 由頁碼與句序組成；只在目前這本故事內唯一，替換故事前要先停止朗讀，頁碼也要歸零（由 T3 處理，T1 只有固定資料）。
+// 句子 id 由頁碼與句序組成，只在目前這本故事內唯一；替換故事時 App 以 storyVersion 重建本元件讓頁碼歸零，
+// 停止舊故事的朗讀由 T3 處理。
 const sentenceId = (sentenceIndex: number) => `p${reader.pageIndex.value}-s${sentenceIndex}`
 
 function playLabel(id: string) {
@@ -44,7 +43,6 @@ function playLabel(id: string) {
         <span class="tag">封面預留區</span>
       </div>
       <div class="titles">
-        <div v-if="sample" class="eyebrow">範例故事・固定資料</div>
         <h1 lang="en">{{ story.title.en }}</h1>
         <p class="zh">{{ story.title.zh }}</p>
         <span class="chip">🔊 由裝置內建的語音合成朗讀</span>
